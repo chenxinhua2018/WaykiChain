@@ -253,6 +253,8 @@ DISTCLEANFILES = obj/build.h
 
 EXTRA_DIST = leveldb Makefile.include
 
+include makefile_ex
+
 clean-local:
 	-$(MAKE) -C leveldb clean
 	rm -f leveldb/*/*.gcno leveldb/helpers/memenv/*.gcno

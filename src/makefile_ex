@@ -1,0 +1,15 @@
+## for wicc_demo
+bin_PROGRAMS += wicc_demo
+
+wicc_demo_LDADD = \
+  libcoin_server.a \
+  libcoin_wallet.a \
+  libcoin_cli.a \
+  libcoin_common.a \
+  liblua53.a \
+  $(LIBLEVELDB) \
+  $(LIBMEMENV)
+
+wicc_demo_SOURCES = wicc_demo.cpp
+
+wicc_demo_LDADD += $(BOOST_LIBS) $(BDB_LIBS)

@@ -1115,6 +1115,10 @@ Object CDelegateTransaction::ToJSON(const CAccountViewCache &AccountView) const 
         operVoteFundArray.push_back(item->ToJson(true));
     }
     result.push_back(Pair("operVoteFundList", operVoteFundArray));
+
+    result.push_back(Pair("signature", HexStr(signature.begin(), signature.end())));
+    result.push_back(Pair("validHeight", nValidHeight));
+    
     return std::move(result);
 }
 
