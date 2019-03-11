@@ -7,17 +7,12 @@
 #ifndef COIN_KEY_H
 #define COIN_KEY_H
 
-#define WRITEDATA(s, obj)   s.write((char*)&(obj), sizeof(obj))
-#define READDATA(s, obj)    s.read((char*)&(obj), sizeof(obj))
-
-#include "allocators.h"
-
-#include "uint256.h"
-
+#include <boost/variant.hpp>
 #include <stdexcept>
 #include <vector>
+#include "allocators.h"
+#include "uint256.h"
 #include "util.h"
-#include <boost/variant.hpp>
 
 /** A reference to a CKey: the Hash160 of its serialized public key */
 class CKeyID: public uint160 {
@@ -25,15 +20,10 @@ public:
 	CKeyID() : uint160() {}
 	CKeyID(const uint160 &in) : uint160(in) {}
 	CKeyID(const string &strAddress);
-	bool IsEmpty()const
-	{
-		return IsNull();
-	}
 
-	string ToString() const
-	{
-		return HexStr(begin(),end());
-	}
+	bool IsEmpty()const { return IsNull(); }
+
+	string ToString() const { return HexStr(begin(),end()); }
 	string ToAddress() const;
 
 };
@@ -196,7 +186,7 @@ public:
 	}
 
 	template<typename Stream> void Unserialize(Stream &s, int nType, int nVersion) {
-		
+
 		unsigned int len = ReadCompactSize(s);
 		if ( len == 33 ) {
 			s.read((char*) vch, 33);

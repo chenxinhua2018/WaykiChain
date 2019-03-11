@@ -21,7 +21,7 @@
 using namespace std;
 class CVmOperate;
 
-class CVmRunEvn {
+class CVmRunEnv {
 	/**
 	 * Run the script object
 	 */
@@ -114,7 +114,7 @@ public:
 	/**
 	 * A constructor.
 	 */
-	CVmRunEvn();
+	CVmRunEnv();
 	/**
 	 *@brief get be operate the account
 	 * @return the variable RawAccont
@@ -159,7 +159,7 @@ public:
 	bool GetAppUserAccount(const vector<unsigned char> &id, shared_ptr<CAppUserAccount> &sptrAcc);
 	bool CheckAppAcctOperate(CTransaction* tx);
 	void SetCheckAccount(bool bCheckAccount);
-	virtual ~CVmRunEvn();
+	virtual ~CVmRunEnv();
 
 };
 
@@ -175,31 +175,32 @@ class CVmOperate{
 public:
 	unsigned char nacctype;      	//regid or base58addr
 	unsigned char accountid[34];	//!< accountid
-	unsigned char opeatortype;		//!OperType
-	unsigned int  outheight;		//!< the transacion Timeout height
+	unsigned char opType;		//!OperType
+	unsigned int  outHeight;		//!< the transacion Timeout height
 	unsigned char money[8];			//!<The transfer amount
 
 	IMPLEMENT_SERIALIZE
 	(
 		READWRITE(nacctype);
-		for(int i = 0;i < 34;i++)
-		READWRITE(accountid[i]);
-		READWRITE(opeatortype);
-		READWRITE(outheight);
-		for(int i = 0;i < 8;i++)
-		READWRITE(money[i]);
+		for (int i = 0;i < 34;i++)
+			READWRITE(accountid[i]);
+		READWRITE(opType);
+		READWRITE(outHeight);
+		for (int i = 0;i < 8;i++)
+			READWRITE(money[i]);
 	)
 
 	CVmOperate() {
 		nacctype = regid;
 		memset(accountid, 0, 34);
-		opeatortype = ADD_FREE;
-		outheight = 0;
+		opType = ADD_FREE;
+		outHeight = 0;
 		memset(money, 0, 8);
 	}
+
 	Object ToJson();
 
 };
 
-//extern CVmRunEvn *pVmRunEvn; //提供给lmylib.cpp库使用
+//extern CVmRunEnv *pVmRunEnv; //提供给lmylib.cpp库使用
 #endif /* SCRIPTCHECK_H_ */

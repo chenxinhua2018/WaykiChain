@@ -376,9 +376,9 @@ Value gensendtoaddressraw(const Array& params, bool fHelp)
     CKeyID sendKeyId, recvKeyId;
     CAccountViewCache view(*pAccountViewTip, true);
 
-    int64_t Fee = AmountToRawValue(params[0]);
-    int64_t nAmount = AmountToRawValue(params[1]);
-    if(nAmount == 0){
+    int64_t fee = AmountToRawValue(params[0]);
+    int64_t amount = AmountToRawValue(params[1]);
+    if(amount == 0){
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "send 0 amount disallowed!");
     }
 
@@ -417,7 +417,7 @@ Value gensendtoaddressraw(const Array& params, bool fHelp)
         height = params[4].get_int();
     }
 
-    std::shared_ptr<CTransaction> tx = std::make_shared<CTransaction>(sendId, recvId, Fee, nAmount, height);
+    std::shared_ptr<CTransaction> tx = std::make_shared<CTransaction>(sendId, recvId, fee, amount, height);
     if (!pwalletMain->Sign(sendKeyId, tx->SignatureHash(), tx->signature)) {
         throw JSONRPCError(RPC_INVALID_PARAMETER,  "Sign failed");
     }
@@ -603,7 +603,7 @@ Value getassets(const Array& params, bool fHelp)
         }
 
         temp.get()->AutoMergeFreezeToFree(chainActive.Tip()->nHeight);
-        uint64_t freeValues = temp.get()->getllValues();
+        uint64_t freeValues = temp.get()->GetLlValues();
         uint64_t freezeValues = temp.get()->GetAllFreezedValues();
         totalassets += freeValues;
         totalassets += freezeValues;
@@ -855,11 +855,11 @@ Value walletpassphrase(const Array& params, bool fHelp)
             "time that overrides the old one.\n"
             "\nExamples:\n"
             "\nunlock the wallet for 60 seconds\n"
-            + HelpExampleCli("walletpassphrase", "\"my pass phrase\" 60") +
+            + HelpExampleCli("walletpassphrase", "\"my passphrase\" 60") +
             "\nLock the wallet again (before 60 seconds)\n"
             + HelpExampleCli("walletlock", "") +
             "\nAs json rpc call\n"
-            + HelpExampleRpc("walletpassphrase", "\"my pass phrase\", 60")
+            + HelpExampleRpc("walletpassphrase", "\"my passphrase\", 60")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -949,18 +949,18 @@ Value encryptwallet(const Array& params, bool fHelp)
             "If the wallet is already encrypted, use the walletpassphrasechange call.\n"
             "Note that this will shutdown the server.\n"
             "\nArguments:\n"
-            "1. \"passphrase\"    (string, required) The pass phrase to encrypt the wallet with. It must be at least 1 character, but should be long.\n"
+            "1. \"passphrase\"    (string, required) The passphrase to encrypt the wallet with. It must be at least 1 character, but should be long.\n"
             "\nExamples:\n"
             "\nEncrypt you wallet\n"
-            + HelpExampleCli("encryptwallet", "\"my pass phrase\"") +
+            + HelpExampleCli("encryptwallet", "\"my passphrase\"") +
             "\nNow set the passphrase to use the wallet, such as for signing or sending Coin\n"
-            + HelpExampleCli("walletpassphrase", "\"my pass phrase\"") +
+            + HelpExampleCli("walletpassphrase", "\"my passphrase\"") +
             "\nNow we can so something like sign\n"
             + HelpExampleCli("signmessage", "\"WICC address\" \"test message\"") +
             "\nNow lock the wallet again by removing the passphrase\n"
             + HelpExampleCli("walletlock", "") +
             "\nAs a json rpc call\n"
-            + HelpExampleRpc("encryptwallet", "\"my pass phrase\"")
+            + HelpExampleRpc("encryptwallet", "\"my passphrase\"")
         );
     }
     LOCK2(cs_main, pwalletMain->cs_wallet);

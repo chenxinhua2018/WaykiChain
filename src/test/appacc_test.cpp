@@ -14,7 +14,7 @@
 #include  "boost/filesystem/operations.hpp"
 #include  "boost/filesystem/path.hpp"
 #include  "../vm/appaccount.h"
-#include "../vm/vmrunevn.h"
+#include "../vm/vmrunenv.h"
 #include "tx.h"
 #include "util.h"
 
@@ -48,14 +48,14 @@ bool CheckAppAcct(int64_t opValue[]) {
     vector_unsigned_char pContract;
     CTransaction tx(srcUserId, desRegId, 10000, opValue[0], 1, pContract); //100 * COIN
 
-    CVmRunEvn vmRunEvn;
+    CVmRunEnv vmRunEnv;
     vector<CVmOperate> vAcctOper;
 
     vector_unsigned_char vDesUser1RegId = desUser1RegId.GetVec6();
     int64_t temp = opValue[1];  //10 * COIN
     CVmOperate acctAddOper;
     acctAddOper.nacctype = regid;
-    acctAddOper.opeatortype = ADD_FREE;
+    acctAddOper.opTye = ADD_FREE;
     memcpy(acctAddOper.accountid, &vDesUser1RegId[0], 6);
     memcpy(acctAddOper.money, &temp, sizeof(temp));
     vAcctOper.push_back(acctAddOper);
@@ -63,7 +63,7 @@ bool CheckAppAcct(int64_t opValue[]) {
     vector_unsigned_char vDesUser2RegId = desUser2RegId.GetVec6();
     temp = opValue[2];   //20 * COIN
     acctAddOper.nacctype = regid;
-    acctAddOper.opeatortype = ADD_FREE;
+    acctAddOper.opType = ADD_FREE;
     memcpy(acctAddOper.accountid, &vDesUser2RegId[0], 6);
     memcpy(acctAddOper.money, &temp, sizeof(temp));
     vAcctOper.push_back(acctAddOper);
@@ -71,46 +71,46 @@ bool CheckAppAcct(int64_t opValue[]) {
     vector_unsigned_char vDesRegId = desRegId.GetVec6();
     temp = opValue[3];  //30 * COIN
     acctAddOper.nacctype = regid;
-    acctAddOper.opeatortype = MINUS_FREE;
+    acctAddOper.opType = MINUS_FREE;
     memcpy(acctAddOper.accountid, &vDesRegId[0], 6);
     memcpy(acctAddOper.money, &temp, sizeof(temp));
     vAcctOper.push_back(acctAddOper);
-    vmRunEvn.InsertOutputData(vAcctOper);
+    vmRunEnv.InsertOutputData(vAcctOper);
 
     CAppFundOperate appFundOper;
-    appFundOper.opeatortype = ADD_FREE_OP;
+    appFundOper.opType = ADD_FREE_OP;
     appFundOper.mMoney = opValue[4];       //20 * COIN
     appFundOper.appuserIDlen = 6;
     memcpy(appFundOper.vAppuser,  &vDesUser1RegId[0], 6);
-    appFundOper.FundTaglen = 6;
+    appFundOper.fundTagLen = 6;
     memcpy(appFundOper.vFundTag, &vDesUser1RegId[0], 6);
-    vmRunEvn.InsertOutAPPOperte(vDesUser1RegId, appFundOper);
+    vmRunEnv.InsertOutAPPOperte(vDesUser1RegId, appFundOper);
 
-    appFundOper.opeatortype = SUB_FREE_OP;
+    appFundOper.opType = SUB_FREE_OP;
     appFundOper.mMoney = opValue[5];      //90 * COIN
     appFundOper.appuserIDlen = 6;
     memcpy(appFundOper.vAppuser,  &vDesUser2RegId[0], 6);
-    appFundOper.FundTaglen = 6;
+    appFundOper.fundTagLen = 6;
     memcpy(appFundOper.vFundTag, &vDesUser2RegId[0], 6);
-    vmRunEvn.InsertOutAPPOperte(vDesUser2RegId, appFundOper);
+    vmRunEnv.InsertOutAPPOperte(vDesUser2RegId, appFundOper);
 
-    appFundOper.opeatortype = ADD_TAG_OP;
+    appFundOper.opType = ADD_TAG_OP;
     appFundOper.mMoney = opValue[6];     // 90 * COIN
     appFundOper.appuserIDlen = 6;
     memcpy(appFundOper.vAppuser,  &vDesUser2RegId[0], 6);
-    appFundOper.FundTaglen = 6;
+    appFundOper.fundTagLen = 6;
     memcpy(appFundOper.vFundTag, &vDesUser2RegId[0], 6);
-    vmRunEvn.InsertOutAPPOperte(vDesUser2RegId, appFundOper);
+    vmRunEnv.InsertOutAPPOperte(vDesUser2RegId, appFundOper);
 
-    appFundOper.opeatortype = SUB_TAG_OP;
+    appFundOper.opType = SUB_TAG_OP;
     appFundOper.mMoney = opValue[7];  // 80 * COIN
     appFundOper.appuserIDlen = 6;
     memcpy(appFundOper.vAppuser,  &vDesUser1RegId[0], 6);
-    appFundOper.FundTaglen = 6;
+    appFundOper.fundTagLen = 6;
     memcpy(appFundOper.vFundTag, &vDesUser1RegId[0], 6);
-    vmRunEvn.InsertOutAPPOperte(vDesUser1RegId, appFundOper);
+    vmRunEnv.InsertOutAPPOperte(vDesUser1RegId, appFundOper);
 
-    return vmRunEvn.CheckAppAcctOperate(&tx);
+    return vmRunEnv.CheckAppAcctOperate(&tx);
 }
 
 BOOST_AUTO_TEST_SUITE(appacc_tests)
@@ -131,7 +131,7 @@ BOOST_AUTO_TEST_CASE(key_test1)
     CAppFundOperate opTe(AppuserId,fundtag, ADD_TAG_OP, 500, 800000);
     BOOST_CHECK(opTe.GetFundTagV() == fundtag);
     BOOST_CHECK(opTe.GetUint64Value()== 800000);
-    BOOST_CHECK(opTe.getopeatortype()== ADD_TAG_OP);
+    BOOST_CHECK(opTe.GetOpType()== ADD_TAG_OP);
 
 
     vector<CAppFundOperate> OpArry;
@@ -154,20 +154,20 @@ BOOST_AUTO_TEST_CASE(key_test1)
     }
 
     CAppUserAccount AccCount(AppuserId);
-    BOOST_CHECK(AccCount.getaccUserId() == AppuserId);      //初始化的ID 必须是
+    BOOST_CHECK(AccCount.GetAccUserId() == AppuserId);      //初始化的ID 必须是
     BOOST_CHECK(AccCount.Operate(OpArry));               //执行所有的操作符合
-    BOOST_CHECK(AccCount.getllValues() == 0);            //因为操作符全是加冻结的钱所以自由金额必须是0
+    BOOST_CHECK(AccCount.GetLlValues() == 0);            //因为操作符全是加冻结的钱所以自由金额必须是0
 
     {
         CAppCFund tep;
         BOOST_CHECK(AccCount.GetAppCFund(tep, fundtag, timeout)); //获取相应的冻结项
-        BOOST_CHECK(tep.getvalue() == OpArry[0].GetUint64Value());                    //冻结的金额需要没有问题
+        BOOST_CHECK(tep.GetValue() == OpArry[0].GetUint64Value());                    //冻结的金额需要没有问题
         CAppCFund tep2;
         BOOST_CHECK(AccCount.GetAppCFund(tep2, fundtag, maxtimeout + 5) == false); //获取相应的冻结项 超时时间不同 必须获取不到
 
         AccCount.AutoMergeFreezeToFree(timeout - 1);                   //自动合并 超时高度没有到  这里的 50 是为了配合签名 time out de 51
         BOOST_CHECK(AccCount.GetAppCFund(tep, fundtag, timeout));            //没有合并必须金额还是没有变动
-        BOOST_CHECK(tep.getvalue() == OpArry[0].GetUint64Value());          //没有合并必须金额还是没有变动
+        BOOST_CHECK(tep.GetValue() == OpArry[0].GetUint64Value());          //没有合并必须金额还是没有变动
     }
 
     {
@@ -180,7 +180,7 @@ BOOST_AUTO_TEST_CASE(key_test1)
     {
         CAppCFund subtemptep;
         BOOST_CHECK(AccCount.GetAppCFund(subtemptep, fundtag, timeout));        //获取相应的冻结项
-        BOOST_CHECK(subtemptep.getvalue() == (OpArry[0].GetUint64Value() - 8));    //上面减去了8  检查是否对
+        BOOST_CHECK(subtemptep.GetValue() == (OpArry[0].GetUint64Value() - 8));    //上面减去了8  检查是否对
     }
 
     {
@@ -194,14 +194,14 @@ BOOST_AUTO_TEST_CASE(key_test1)
     {
         CAppCFund reverttemptep;
         BOOST_CHECK(AccCount.GetAppCFund(reverttemptep, fundtag, timeout));          //没有合并必须金额还是没有变动
-        BOOST_CHECK(reverttemptep.getvalue() == OpArry[0].GetUint64Value());            //没有合并必须金额还是没有变动
+        BOOST_CHECK(reverttemptep.GetValue() == OpArry[0].GetUint64Value());            //没有合并必须金额还是没有变动
     }
 
     {           //合并第一个
         CAppCFund tep;
         AccCount.AutoMergeFreezeToFree(timeout);                                //自动合并 第0个
         BOOST_CHECK(AccCount.GetAppCFund(tep, fundtag, timeout) == false);      //必须找不到数据
-        BOOST_CHECK(AccCount.getllValues() == OpArry[0].GetUint64Value());;                         //合并后自由金额必须没有问题
+        BOOST_CHECK(AccCount.GetLlValues() == OpArry[0].GetUint64Value());;                         //合并后自由金额必须没有问题
     }
 
     {                       //减去全部
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_CASE(key_test1)
         vector<CAppFundOperate> OpArry2;
         OpArry2.insert(OpArry2.end(), subfreeop);
         BOOST_CHECK(AccCount.Operate(OpArry2));                             //执行所有的操作符合
-        BOOST_CHECK(AccCount.getllValues() == 0);;                           //钱必须可以核对
+        BOOST_CHECK(AccCount.GetLlValues() == 0);;                           //钱必须可以核对
     }
 
     {
@@ -218,12 +218,12 @@ BOOST_AUTO_TEST_CASE(key_test1)
         OpArry2.clear();
         OpArry2.insert(OpArry2.end(), addfreeop);
         BOOST_CHECK(AccCount.Operate(OpArry2));                             //执行所有的操作符合
-        BOOST_CHECK(AccCount.getllValues() == OpArry[0].GetUint64Value());                //加上后 就回来了
+        BOOST_CHECK(AccCount.GetLlValues() == OpArry[0].GetUint64Value());                //加上后 就回来了
     }
 
     AccCount.AutoMergeFreezeToFree(maxtimeout);                     //全部合并
-    printf("%lu, %lu\n", AccCount.getllValues(), allmony);
-    BOOST_CHECK(AccCount.getllValues() == allmony);                //余额平账
+    printf("%lu, %lu\n", AccCount.GetLlValues(), allmony);
+    BOOST_CHECK(AccCount.GetLlValues() == allmony);                //余额平账
 
 }
 

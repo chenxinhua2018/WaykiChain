@@ -13,7 +13,7 @@
 #include "main.h"
 #include <algorithm>
 #include "txdb.h"
-#include "vm/vmrunevn.h"
+#include "vm/vmrunenv.h"
 #include "core.h"
 #include "miner.h"
 #include "json/json_spirit_utils.h"
@@ -32,36 +32,36 @@ CAppCFund::CAppCFund() {
 
 CAppCFund::CAppCFund(const CAppCFund &fund) {
 	vTag = fund.GetTag();
-	value = fund.getvalue();
-	nHeight = fund.getheight();
+	value = fund.GetValue();
+	nHeight = fund.GetHeight();
 }
 
-CAppCFund::CAppCFund(const vector<unsigned char>& vtag, uint64_t val, int nhight) {
-	vTag = vtag;
+CAppCFund::CAppCFund(const vector<unsigned char>& tag, uint64_t val, int height) {
+	vTag = tag;
 	value = val;
-	nHeight = nhight;
+	nHeight = height;
 }
 
 inline bool CAppCFund::MergeCFund(const CAppCFund &fund) {
 	assert(fund.GetTag() == this->GetTag());
-	assert(fund.getheight() == this->getheight() && fund.getvalue() > 0);
-	//value = fund.getvalue()+value;
+	assert(fund.GetHeight() == this->GetHeight() && fund.GetValue() > 0);
+	//value = fund.GetValue()+value;
 	uint64_t tempValue = 0;
-	if(!SafeAdd(fund.getvalue(), value, tempValue)) {
+	if (!SafeAdd(fund.GetValue(), value, tempValue))
 		return ERRORMSG("Operate overflow !");
-	}
+
 	value = tempValue;
 	return true;
 }
 
 
+CAppCFund::CAppCFund(const CAppFundOperate& op) {
+	//	assert(Op.opType == ADD_TAG_OP || ADD_TAG_OP == Op.opType);
+	assert(op.outHeight > 0);
 
-CAppCFund::CAppCFund(const CAppFundOperate& Op) {
-	//	assert(Op.opeatortype == ADD_TAG_OP || ADD_TAG_OP == Op.opeatortype);
-	assert(Op.outheight > 0);
-	vTag = Op.GetFundTagV();
-	value = Op.GetUint64Value();					//!< amount of money
-	nHeight = Op.outheight;
+	vTag = op.GetFundTagV();
+	value = op.GetUint64Value();					//!< amount of money
+	nHeight = op.outHeight;
 }
 
 
@@ -71,6 +71,7 @@ CAppUserAccount::CAppUserAccount() {
 
 	vFrozenFunds.clear();
 }
+
 CAppUserAccount::CAppUserAccount(const vector<unsigned char> &userId)
 {
 	mAccUserID.clear();
@@ -80,10 +81,10 @@ CAppUserAccount::CAppUserAccount(const vector<unsigned char> &userId)
 	vFrozenFunds.clear();
 }
 
-bool CAppUserAccount::GetAppCFund(CAppCFund& outFound, const vector<unsigned char>& vtag , int hight) 
+bool CAppUserAccount::GetAppCFund(CAppCFund& outFound, const vector<unsigned char>& vtag , int height)
 {
-	auto it = find_if( vFrozenFunds.begin(), vFrozenFunds.end(), 
-		[&](const CAppCFund& CfundIn) { return hight ==CfundIn.getheight() && CfundIn.GetTag() == vtag; } );
+	auto it = find_if( vFrozenFunds.begin(), vFrozenFunds.end(),
+		[&](const CAppCFund& CfundIn) { return height == CfundIn.GetHeight() && CfundIn.GetTag() == vtag; } );
 
 	if (it != vFrozenFunds.end()) {
 		outFound = *it;
@@ -96,7 +97,8 @@ bool CAppUserAccount::GetAppCFund(CAppCFund& outFound, const vector<unsigned cha
 bool CAppUserAccount::AddAppCFund(const CAppCFund& inFound) {
 	//需要找到超时高度和tag 都相同的才可以合并
 	auto it = find_if(vFrozenFunds.begin(), vFrozenFunds.end(), [&](const CAppCFund& CfundIn) {
-		return CfundIn.GetTag()== inFound.GetTag() && CfundIn.getheight() ==inFound.getheight() ;});
+		return CfundIn.GetTag()== inFound.GetTag() && CfundIn.GetHeight() == inFound.GetHeight() ;});
+
 	if (it != vFrozenFunds.end()) { //如果找到了
 		return it->MergeCFund(inFound);
 		//return true;
@@ -110,40 +112,41 @@ uint64_t CAppUserAccount::GetAllFreezedValues()
 {
 	uint64_t total = 0;
 	for (auto &Fund : vFrozenFunds) {
-		total += Fund.getvalue();
+		total += Fund.GetValue();
 	}
 
 	return total;
 }
 
-bool CAppUserAccount::AutoMergeFreezeToFree(int hight) {
-
-	bool isneedremvoe = false;
+bool CAppUserAccount::AutoMergeFreezeToFree(int height)
+{
+	bool needRemove = false;
 	for (auto &Fund : vFrozenFunds) {
-		if (Fund.getheight() <= hight) {
+		if (Fund.GetHeight() <= height) {
 			//llValues += Fund.getvalue();
 			uint64_t tempValue = 0;
-			if(!SafeAdd(llValues, Fund.getvalue(), tempValue)) {
+			if(!SafeAdd(llValues, Fund.GetValue(), tempValue)) {
 				printf("Operate overflow !\n");
 				return ERRORMSG("Operate overflow !");
 			}
 			llValues = tempValue;
-			isneedremvoe = true;
+			needRemove = true;
 		}
 	}
-	if (isneedremvoe) {
-		vFrozenFunds.erase(remove_if(vFrozenFunds.begin(), vFrozenFunds.end(), [&](const CAppCFund& CfundIn) {
-			return (CfundIn.getheight() <= hight);}), vFrozenFunds.end());
-	}
-	return true;
 
+	if (needRemove) {
+		vFrozenFunds.erase(remove_if(vFrozenFunds.begin(), vFrozenFunds.end(), [&](const CAppCFund& CfundIn) {
+			return (CfundIn.GetHeight() <= height);}), vFrozenFunds.end());
+	}
+
+	return true;
 }
 
 bool CAppUserAccount::ChangeAppCFund(const CAppCFund& inFound) {
 	//需要找到超时高度和tag 都相同的才可以合并
-	assert(inFound.getheight() > 0);
+	assert(inFound.GetHeight() > 0);
 	auto it = find_if(vFrozenFunds.begin(), vFrozenFunds.end(), [&](const CAppCFund& CfundIn) {
-		return CfundIn.GetTag()== inFound.GetTag() && CfundIn.getheight() ==inFound.getheight() ;});
+		return CfundIn.GetTag()== inFound.GetTag() && CfundIn.GetHeight() ==inFound.GetHeight() ;});
 	if (it != vFrozenFunds.end()) { //如果找到了
 		*it= inFound;
 		return true;
@@ -152,17 +155,17 @@ bool CAppUserAccount::ChangeAppCFund(const CAppCFund& inFound) {
 }
 
 bool CAppUserAccount::MinusAppCFund(const CAppCFund& inFound) {
-	assert(inFound.getheight() > 0);
+	assert(inFound.GetHeight() > 0);
 	auto it = find_if(vFrozenFunds.begin(), vFrozenFunds.end(), [&](const CAppCFund& CfundIn) {
-		return CfundIn.GetTag()== inFound.GetTag() && CfundIn.getheight() ==inFound.getheight() ;});
+		return CfundIn.GetTag()== inFound.GetTag() && CfundIn.GetHeight() ==inFound.GetHeight() ;});
 
 	if (it != vFrozenFunds.end()) { //如果找到了
-		if (it->getvalue() >= inFound.getvalue()) {
-			if(it->getvalue() == inFound.getvalue()) {
+		if (it->GetValue() >= inFound.GetValue()) {
+			if(it->GetValue() == inFound.GetValue()) {
 				vFrozenFunds.erase(it);
 				return true;
 			}
-			it->setValue(it->getvalue()  - inFound.getvalue());
+			it->SetValue(it->GetValue()  - inFound.GetValue());
 			return true;
 		}
 	}
@@ -183,6 +186,7 @@ bool CAppUserAccount::AddAppCFund(const vector<unsigned char>& vtag, uint64_t va
 CAppUserAccount::~CAppUserAccount() {
 
 }
+
 bool CAppUserAccount::Operate(const vector<CAppFundOperate> &Op) {
 	assert(Op.size() > 0);
 	//LogPrint("acc","before:%s",toString());
@@ -196,45 +200,48 @@ bool CAppUserAccount::Operate(const vector<CAppFundOperate> &Op) {
 }
 
 
-
 bool CAppUserAccount::Operate(const CAppFundOperate& Op) {
 	//LogPrint("acc","Op:%s",Op.toString());
-	if (Op.opeatortype == ADD_FREE_OP) {
+	if (Op.opType == ADD_FREE_OP) {
 		//llValues += Op.GetUint64Value();
 		uint64_t tempValue = 0;
-		if(!SafeAdd(llValues, Op.GetUint64Value(), tempValue)) {
+		if (!SafeAdd(llValues, Op.GetUint64Value(), tempValue))
 			return ERRORMSG("Operate overflow !");
-		}
+
 		llValues = tempValue;
 		return true;
-	} else if (Op.opeatortype == SUB_FREE_OP) {
+
+	} else if (Op.opType == SUB_FREE_OP) {
 		uint64_t tem = Op.GetUint64Value();
 		if (llValues >= tem) {
 			llValues -= tem;
 			return true;
 		}
-	} else if (Op.opeatortype == ADD_TAG_OP) {
+
+	} else if (Op.opType == ADD_TAG_OP) {
 		CAppCFund tep(Op);
 		return AddAppCFund(tep);
-	} else if (Op.opeatortype == SUB_TAG_OP) {
+
+	} else if (Op.opType == SUB_TAG_OP) {
 		CAppCFund tep(Op);
 		return MinusAppCFund(tep);
+
 	} else {
 		return ERRORMSG("CAppUserAccount operate type error!");
-//		assert(0);
 	}
+
 	return false;
 }
 
 CAppFundOperate::CAppFundOperate() {
-	FundTaglen = 0;
+	fundTagLen = 0;
 	appuserIDlen = 0;
-	opeatortype = 0;
-	outheight = 0;
+	opType = 0;
+	outHeight = 0;
 	mMoney = 0;
 }
 
-Object CAppCFund::toJSON()const {
+Object CAppCFund::ToJson()const {
 	Object result;
 	result.push_back(Pair("value", value));
 	result.push_back(Pair("nHeight", nHeight));
@@ -242,42 +249,42 @@ Object CAppCFund::toJSON()const {
 	return std::move(result);
 }
 
-string CAppCFund::toString()const {
-	return write_string(Value(toJSON()), true);
+string CAppCFund::ToString()const {
+	return write_string(Value(ToJson()), true);
 }
 
-Object CAppUserAccount::toJSON() const {
+Object CAppUserAccount::ToJson() const {
 	Object result;
 	result.push_back(Pair("mAccUserID", HexStr(mAccUserID)));
 	result.push_back(Pair("FreeValues", llValues));
 
 	Array arry;
 	for (auto const te : vFrozenFunds) {
-		arry.push_back(te.toJSON());
+		arry.push_back(te.ToJson());
 	}
 	result.push_back(Pair("FrozenFunds", arry));
 
 	return std::move(result);
 }
 
-string CAppUserAccount::toString() const {
-	return write_string(Value(toJSON()), true);
+string CAppUserAccount::ToString() const {
+	return write_string(Value(ToJson()), true);
 }
 
-Object CAppFundOperate::toJSON() const {
+Object CAppFundOperate::ToJson() const {
 	Object result;
-	int timout = outheight;
-	string tep[] ={"error type","ADD_FREE_OP ","SUB_FREE_OP","ADD_TAG_OP","SUB_TAG_OP"};
+	// int timout = outheight;
+	string optypes[] = {"error type", "ADD_FREE_OP ","SUB_FREE_OP","ADD_TAG_OP","SUB_TAG_OP"};
+
 	result.push_back(Pair("userid", HexStr(GetAppUserV())));
 	result.push_back(Pair("vTag", HexStr(GetFundTagV())));
-	result.push_back(Pair("opeatortype", tep[opeatortype]));
-	result.push_back(Pair("outheight", timout));
-//	result.push_back(Pair("outheight", outheight));
+	result.push_back(Pair("opType", optypes[opType]));
+	result.push_back(Pair("outHeight", (int) outHeight));
 	result.push_back(Pair("mMoney", mMoney));
-	return std::move(result);
 
+	return std::move(result);
 }
 
-string CAppFundOperate::toString() const {
-	return write_string(Value(toJSON()), true);
+string CAppFundOperate::ToString() const {
+	return write_string(Value(ToJson()), true);
 }

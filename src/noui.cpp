@@ -118,9 +118,9 @@ static bool noui_SyncTx()
 			CAccountTx acctTx= pwalletMain->mapInBlockTx[pStartBlockIndex->GetBlockHash()];
 			map<uint256, std::shared_ptr<CBaseTransaction> >::iterator iterTx = acctTx.mapAccountTx.begin();
 			for(;iterTx != acctTx.mapAccountTx.end(); ++iterTx) {
-				objTx = iterTx->second->ToJSON(*pAccountViewTip);
+				objTx = iterTx->second->ToJson(*pAccountViewTip);
 				objTx.push_back(Pair("blockhash", pStartBlockIndex->GetBlockHash().ToString()));
-				objTx.push_back(Pair("confirmHeight", pStartBlockIndex->nHeight));
+				objTx.push_back(Pair("confirmedheight", pStartBlockIndex->nHeight));
 				objTx.push_back(Pair("confirmedtime", (int)pStartBlockIndex->nTime));
 				Object obj;
 				obj.push_back(Pair("type", "SyncTx"));
@@ -137,10 +137,10 @@ static bool noui_SyncTx()
 		Object objTx;
 		map<uint256, std::shared_ptr<CBaseTransaction> >::iterator iterTx = iterAccountTx->second.mapAccountTx.begin();
 		for(;iterTx != iterAccountTx->second.mapAccountTx.end(); ++iterTx) {
-			objTx = iterTx->second.get()->ToJSON(*pAccountViewTip);
+			objTx = iterTx->second.get()->ToJson(*pAccountViewTip);
 			objTx.push_back(Pair("blockhash", iterAccountTx->first.GetHex()));
 			if(mapBlockIndex.count(iterAccountTx->first) && chainActive.Contains(mapBlockIndex[iterAccountTx->first])) {
-				objTx.push_back(Pair("confirmHeight", mapBlockIndex[iterAccountTx->first]->nHeight));
+				objTx.push_back(Pair("confirmedheight", mapBlockIndex[iterAccountTx->first]->nHeight));
 				objTx.push_back(Pair("confirmedtime", (int)mapBlockIndex[iterAccountTx->first]->nTime));
 			}
 			else {
@@ -157,7 +157,7 @@ static bool noui_SyncTx()
 	map<uint256, std::shared_ptr<CBaseTransaction> >::iterator iterTx =  pwalletMain->UnConfirmTx.begin();
 	for(; iterTx != pwalletMain->UnConfirmTx.end(); ++iterTx)
 	{
-		Object objTx = iterTx->second.get()->ToJSON(*pAccountViewTip);
+		Object objTx = iterTx->second.get()->ToJson(*pAccountViewTip);
 		arrayObj.push_back(objTx);
 
 		Object obj;
@@ -211,9 +211,9 @@ static bool noui_RevTransaction(const uint256 &hash){
 static bool noui_RevAppTransaction(const CBlock *pBlock ,int nIndex){
 	Object obj;
 	obj.push_back(Pair("type", "rev_app_transaction"));
-	Object objTx = pBlock->vptx[nIndex].get()->ToJSON(*pAccountViewTip);
+	Object objTx = pBlock->vptx[nIndex].get()->ToJson(*pAccountViewTip);
 	objTx.push_back(Pair("blockhash", pBlock->GetHash().GetHex()));
-	objTx.push_back(Pair("confirmHeight", (int) pBlock->GetHeight()));
+	objTx.push_back(Pair("confirmedheight", (int) pBlock->GetHeight()));
 	objTx.push_back(Pair("confirmedtime", (int) pBlock->GetTime()));
 	obj.push_back(Pair("transaction", objTx));
 	AddMessageToDeque(write_string(Value(std::move(obj)),true));
