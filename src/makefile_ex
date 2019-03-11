@@ -13,3 +13,7 @@ wicc_demo_LDADD = \
 wicc_demo_SOURCES = wicc_demo.cpp
 
 wicc_demo_LDADD += $(BOOST_LIBS) $(BDB_LIBS)
+
+
+## ex for rpcserver
+libcoin_server_a_SOURCES += demo/rpc_ex.cpp

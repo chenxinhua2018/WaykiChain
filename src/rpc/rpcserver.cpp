@@ -23,6 +23,12 @@
 #include <memory>
 #include "json/json_spirit_writer_template.h"
 #include "../wallet/wallet.h"
+
+
+///////////////////////////////
+// ex
+#include "demo/rpc_ex.h"
+
 using namespace std;
 using namespace boost;
 using namespace boost::asio;
@@ -333,6 +339,10 @@ static const CRPCCommand vRPCCommands[] =
     { "getalltxinfo",           &getalltxinfo,           true,      false,      true },
     { "saveblocktofile",        &saveblocktofile,        true,      false,      true },
     { "gethash",                &gethash,                true,      false,      true },
+
+    //////////////////////////////////////////////
+    // ex
+    { "getcontractscript",      &getcontractscript,      true,      false,      true },
 };
 
 CRPCTable::CRPCTable() {
