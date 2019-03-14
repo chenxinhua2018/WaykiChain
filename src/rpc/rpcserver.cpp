@@ -85,7 +85,7 @@ int64_t AmountToRawValue(const Value& value)
 {
     double dAmount = value.get_real();
     int64_t nAmount = roundint64(dAmount);
-    if (!MoneyRange(nAmount))
+    if (!CheckMoneyRange(nAmount))
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
     return nAmount;
 }

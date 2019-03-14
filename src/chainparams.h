@@ -70,12 +70,12 @@ protected:
     mutable bool fTxIndex;
     mutable int64_t nTimeBestReceived;
     mutable int64_t paytxfee;
-    int64_t nTargetSpacing;   //to limit block creation time
+    int64_t nBlockInterval;   //to limit block creation time
     mutable unsigned int nScriptCheckThreads;
     mutable int64_t nViewCacheSize;
     mutable int nTxCacheHeight;
-    mutable int nIntervalPos; //to limit block interval within block mining process
-    int nLogmaxsize; // to limit the maximum log file size in bytes
+    mutable int nMaxForkHeight; // to limit
+    int nLogMaxSize; // to limit the maximum log file size in bytes
     bool bOutPut;    // whether to save contract script operation account log
     bool bAddressToTx; // whether to save the mapping of address to Tx
 
@@ -104,10 +104,10 @@ public:
             paytxfee = nTransactionFee;
         }
 
-       nIntervalPos = GetArg("-intervalpos", 1440);
-       nLogmaxsize = GetArg("-logmaxsize", 100) * 1024 * 1024;
-       bOutPut = GetBoolArg("-output", false);
-       bAddressToTx = GetBoolArg("-addresstotx", false);
+        // nMaxForkHeight = GetArg("-maxforkheight", 8640);
+        nLogMaxSize = GetArg("-logmaxsize", 100) * 1024 * 1024;
+        bOutPut = GetBoolArg("-output", false);
+        bAddressToTx = GetBoolArg("-addresstotx", false);
         return true;
     }
 
@@ -121,26 +121,25 @@ public:
                 te += strprintf("value :%s\n",tep3.c_str());
             }
         }
-        te += strprintf("fDebugAll:%s\n",fDebugAll);
-        te += strprintf("fDebug:%s\n",fDebug);
-        te += strprintf("fPrintLogToConsole:%d\n",fPrintLogToConsole);
-        te += strprintf("fPrintLogToFile:%d\n",fPrintLogToFile);
-        te += strprintf("fLogTimestamps:%d\n",fLogTimestamps);
-        te += strprintf("fLogPrintFileLine:%d\n",fLogPrintFileLine);
-        te += strprintf("fServer:%d\n",fServer);
-
-        te += strprintf("fImporting:%d\n",fImporting);
-        te += strprintf("fReindex:%d\n",fReindex);
-        te += strprintf("fBenchmark:%d\n",fBenchmark);
-        te += strprintf("fTxIndex:%d\n",fTxIndex);
-        te += strprintf("nTimeBestReceived:%d\n",nTimeBestReceived);
-        te += strprintf("paytxfee:%d\n",paytxfee);
-        te += strprintf("nTargetSpacing:%d\n",nTargetSpacing);
-        te += strprintf("nScriptCheckThreads:%d\n",nScriptCheckThreads);
-        te += strprintf("nViewCacheSize:%d\n",nViewCacheSize);
-        te += strprintf("nTxCacheHeight:%d\n",nTxCacheHeight);
-        te += strprintf("nIntervalPos:%d\n",nIntervalPos);
-        te += strprintf("nLogmaxsize:%d\n",nLogmaxsize);
+        te += strprintf("fDebugAll:%s\n",           fDebugAll);
+        te += strprintf("fDebug:%s\n",              fDebug);
+        te += strprintf("fPrintLogToConsole:%d\n",  fPrintLogToConsole);
+        te += strprintf("fPrintLogToFile:%d\n",     fPrintLogToFile);
+        te += strprintf("fLogTimestamps:%d\n",      fLogTimestamps);
+        te += strprintf("fLogPrintFileLine:%d\n",   fLogPrintFileLine);
+        te += strprintf("fServer:%d\n",             fServer);
+        te += strprintf("fImporting:%d\n",          fImporting);
+        te += strprintf("fReindex:%d\n",            fReindex);
+        te += strprintf("fBenchmark:%d\n",          fBenchmark);
+        te += strprintf("fTxIndex:%d\n",            fTxIndex);
+        te += strprintf("nTimeBestReceived:%d\n",   nTimeBestReceived);
+        te += strprintf("paytxfee:%d\n",            paytxfee);
+        te += strprintf("nBlockInterval:%d\n",      nBlockInterval);
+        te += strprintf("nScriptCheckThreads:%d\n", nScriptCheckThreads);
+        te += strprintf("nViewCacheSize:%d\n",      nViewCacheSize);
+        te += strprintf("nTxCacheHeight:%d\n",      nTxCacheHeight);
+        // te += strprintf("nMaxForkHeight:%d\n",      nMaxForkHeight);
+        te += strprintf("nLogMaxSize:%d\n",         nLogMaxSize);
 
         return te;
     }
@@ -218,8 +217,8 @@ public:
     bool IsTxIndex() const {
         return fTxIndex;
     }
-    int64_t GetTargetSpacing() const {
-        return nTargetSpacing;
+    int64_t GetBlockInterval() const {
+        return nBlockInterval;
     }
     int64_t GetBestRecvTime() const {
         return nTimeBestReceived;
@@ -233,20 +232,15 @@ public:
     int GetTxCacheHeight() const {
         return nTxCacheHeight;
     }
-    int GetIntervalPos() const {
-        return nIntervalPos;
-    }
+    // int GetMaxForkHeight() const {
+    //     return nMaxForkHeight;
+    // }
     int GetLogMaxSize() const {
-        return nLogmaxsize;
+        return nLogMaxSize;
     }
-    int GetMaxDay() const {
-        return GetIntervalPos() * 30;
-    }
-
     void SetImporting(bool flag) const {
         fImporting = flag;
     }
-
     void SetReIndex(bool flag) const {
         fReindex = flag;
     }

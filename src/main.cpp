@@ -608,7 +608,7 @@ int64_t GetMinRelayFee(const CBaseTransaction *pBaseTx, unsigned int nBytes, boo
             nMinFee = 0;
     }
 
-    if (!MoneyRange(nMinFee))
+    if (!CheckMoneyRange(nMinFee))
         nMinFee = GetMaxMoney();
 
     return nMinFee;
@@ -2050,15 +2050,17 @@ bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, unsigne
     return true;
 }
 
-bool CheckBlockProofWorkWithCoinDay(const CBlock &block, CBlockIndex *pPreBlockIndex, CValidationState &state) {
-    std::shared_ptr<CAccountViewCache> pForkAcctViewCache;
-    std::shared_ptr<CTransactionDBCache> pForkTxCache;
-    std::shared_ptr<CScriptDBViewCache> pForkScriptDBCache;
+bool CheckBlockProofWorkWithCoinDay(const CBlock &block, CBlockIndex *pPreBlockIndex, CValidationState &state)
+{
+    std::shared_ptr<CAccountViewCache>      pForkAcctViewCache;
+    std::shared_ptr<CTransactionDBCache>    pForkTxCache;
+    std::shared_ptr<CScriptDBViewCache>     pForkScriptDBCache;
+    std::shared_ptr<CAccountViewCache>      pAcctViewCache;
 
-    std::shared_ptr<CAccountViewCache> pAcctViewCache = std::make_shared<CAccountViewCache>(*pAccountViewDB, true);
-    pAcctViewCache->cacheAccounts                     = pAccountViewTip->cacheAccounts;
-    pAcctViewCache->cacheKeyIds                       = pAccountViewTip->cacheKeyIds;
-    pAcctViewCache->hashBlock                         = pAccountViewTip->hashBlock;
+    pAcctViewCache                  = std::make_shared<CAccountViewCache>(*pAccountViewDB, true);
+    pAcctViewCache->cacheAccounts   = pAccountViewTip->cacheAccounts;
+    pAcctViewCache->cacheKeyIds     = pAccountViewTip->cacheKeyIds;
+    pAcctViewCache->hashBlock       = pAccountViewTip->hashBlock;
 
     std::shared_ptr<CTransactionDBCache> pTxCache = std::make_shared<CTransactionDBCache>(*pTxCacheDB, true);
     pTxCache->SetCacheMap(pTxCacheTip->GetCacheMap());
@@ -2071,21 +2073,26 @@ bool CheckBlockProofWorkWithCoinDay(const CBlock &block, CBlockIndex *pPreBlockI
     vector<CBlock> vPreBlocks;
     if (pPreBlockIndex->GetBlockHash() != chainActive.Tip()->GetBlockHash()) {
         while (!chainActive.Contains(pPreBlockIndex)) {
-            if (mapCache.count(pPreBlockIndex->GetBlockHash()) > 0 && !bFindForkChainTip) {
+            if (!bFindForkChainTip && mapCache.count(pPreBlockIndex->GetBlockHash()) > 0) {
                 preBlockHash = pPreBlockIndex->GetBlockHash();
-                LogPrint("INFO", "ForkChainTip hash=%s, height=%d\n", pPreBlockIndex->GetBlockHash().GetHex(), pPreBlockIndex->nHeight);
+                LogPrint("INFO", "ForkChainTip hash=%s, height=%d\n", pPreBlockIndex->GetBlockHash().GetHex(),
+                    pPreBlockIndex->nHeight);
                 bFindForkChainTip = true;
             }
+
             if (!bFindForkChainTip) {
                 CBlock block;
                 if (!ReadBlockFromDisk(block, pPreBlockIndex))
                     return state.Abort(_("Failed to read block"));
+
                 vPreBlocks.push_back(block);  //将支链的block保存起来
             }
+
             pPreBlockIndex = pPreBlockIndex->pprev;
-            if (chainActive.Tip()->nHeight - pPreBlockIndex->nHeight > SysCfg().GetIntervalPos()) {
-                return state.DoS(100, ERRORMSG("CheckBlockProofWorkWithCoinDay() : block at fork chain too earlier than tip block hash=%s block height=%d\n", block.GetHash().GetHex(), block.GetHeight()));
-            }
+            // if (chainActive.Tip()->nHeight - pPreBlockIndex->nHeight > SysCfg().GetMaxForkHeight())
+            //     return state.DoS(100, ERRORMSG("CheckBlockProofWorkWithCoinDay() : block at fork chain too earlier than tip block hash=%s block height=%d\n",
+            //         block.GetHash().GetHex(), block.GetHeight()));
+
             map<uint256, CBlockIndex *>::iterator mi = mapBlockIndex.find(pPreBlockIndex->GetBlockHash());
             if (mi == mapBlockIndex.end())
                 return state.DoS(10, ERRORMSG("CheckBlockProofWorkWithCoinDay() : prev block not found"), 0, "bad-prevblk");
@@ -2105,17 +2112,18 @@ bool CheckBlockProofWorkWithCoinDay(const CBlock &block, CBlockIndex *pPreBlockI
                 CBlock block;
                 if (!ReadBlockFromDisk(block, pBlockIndex))
                     return state.Abort(_("Failed to read block"));
+
                 bool bfClean = true;
-                if (!DisconnectBlock(block, state, *pAcctViewCache, pBlockIndex, *pTxCache, *pScriptDBCache, &bfClean)) {
+                if (!DisconnectBlock(block, state, *pAcctViewCache, pBlockIndex, *pTxCache, *pScriptDBCache, &bfClean))
                     return ERRORMSG("CheckBlockProofWorkWithCoinDay() : DisconnectBlock %s failed",
-                                    pBlockIndex->GetBlockHash().ToString());
-                }
+                        pBlockIndex->GetBlockHash().ToString());
+
                 pBlockIndex = pBlockIndex->pprev;
             }
-            std::tuple<std::shared_ptr<CAccountViewCache>, std::shared_ptr<CTransactionDBCache>,
-                       std::shared_ptr<CScriptDBViewCache> >
-                forkCache = std::make_tuple(pAcctViewCache, pTxCache,
-                                            pScriptDBCache);
+            std::tuple
+                <std::shared_ptr<CAccountViewCache>,
+                std::shared_ptr<CTransactionDBCache>,
+                std::shared_ptr<CScriptDBViewCache> > forkCache = std::make_tuple(pAcctViewCache, pTxCache, pScriptDBCache);
             LogPrint("INFO", "add mapCache Key:%s height:%d\n", pPreBlockIndex->GetBlockHash().GetHex(), pPreBlockIndex->nHeight);
             LogPrint("INFO", "add pAcctViewCache:%x \n", pAcctViewCache.get());
             LogPrint("INFO", "view best block hash:%s \n", pAcctViewCache->GetBestBlock().GetHex());
@@ -2137,7 +2145,8 @@ bool CheckBlockProofWorkWithCoinDay(const CBlock &block, CBlockIndex *pPreBlockI
         }
 
         LogPrint("INFO", "pForkAcctView:%x\n", pForkAcctViewCache.get());
-        LogPrint("INFO", "view best block hash:%s height:%d\n", pForkAcctViewCache->GetBestBlock().GetHex(), mapBlockIndex[pForkAcctViewCache->GetBestBlock()]->nHeight);
+        LogPrint("INFO", "view best block hash:%s height:%d\n",
+            pForkAcctViewCache->GetBestBlock().GetHex(), mapBlockIndex[pForkAcctViewCache->GetBestBlock()]->nHeight);
 
         vector<CBlock>::reverse_iterator rIter = vPreBlocks.rbegin();
         for (; rIter != vPreBlocks.rend(); ++rIter) {  //连接支链的block
@@ -2295,7 +2304,7 @@ bool AcceptBlock(CBlock &block, CValidationState &state, CDiskBlockPos *dbp)
 
         // Check timestamp against prev
         if (block.GetBlockTime() <= pBlockIndexPrev->GetBlockTime() ||
-            (block.GetBlockTime() - pBlockIndexPrev->GetBlockTime()) < SysCfg().GetTargetSpacing())
+            (block.GetBlockTime() - pBlockIndexPrev->GetBlockTime()) < SysCfg().GetBlockInterval())
             return state.Invalid(ERRORMSG("AcceptBlock() : block's timestamp is too early"),
                 REJECT_INVALID, "time-too-early");
 
@@ -3636,14 +3645,14 @@ bool static ProcessMessage(CNode *pfrom, string strCommand, CDataStream &vRecv)
 
             boost::this_thread::interruption_point();
             pfrom->AddInventoryKnown(inv);
-
             bool fAlreadyHave = AlreadyHave(inv);
 
             int nBlockHeight = 0;
-            if (mapBlockIndex.count(inv.hash) && inv.type == MSG_BLOCK) {
+            if (inv.type == MSG_BLOCK && mapBlockIndex.count(inv.hash))
                 nBlockHeight = mapBlockIndex[inv.hash]->nHeight;
-            }
-            LogPrint("net", "got inventory [%d]: %s  %s %d from peer %s\n", nInv, inv.ToString(), fAlreadyHave ? "have" : "new", nBlockHeight, pfrom->addr.ToString());
+
+            LogPrint("net", "got inventory[%d]: %s %s %d from peer %s\n", nInv, inv.ToString(),
+                fAlreadyHave ? "have" : "new", nBlockHeight, pfrom->addr.ToString());
 
             if (!fAlreadyHave) {
                 if (!SysCfg().IsImporting() && !SysCfg().IsReindex()) {
@@ -3655,7 +3664,7 @@ bool static ProcessMessage(CNode *pfrom, string strCommand, CDataStream &vRecv)
             } else if (inv.type == MSG_BLOCK && mapOrphanBlocks.count(inv.hash)) {
                 COrphanBlock *pOrphanBlock = mapOrphanBlocks[inv.hash];
                 LogPrint("net", "receive orphan block inv height=%d hash=%s lead to getblocks, current height=%d\n",
-                         pOrphanBlock->height, inv.hash.GetHex(), chainActive.Tip()->nHeight);
+                    pOrphanBlock->height, inv.hash.GetHex(), chainActive.Tip()->nHeight);
                 PushGetBlocksOnCondition(pfrom, chainActive.Tip(), GetOrphanRoot(inv.hash));
             }
 

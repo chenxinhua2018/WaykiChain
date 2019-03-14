@@ -322,6 +322,19 @@ int CBaseTransaction::GetFuelRate(CScriptDBViewCache &scriptDB)
     return nFuelRate;
 }
 
+//check the fees must be more than nMinTxFee
+bool CBaseTransaction::CheckMinTxFee(uint64_t llFees)
+{
+    NET_TYPE networkID = SysCfg().NetworkID();
+    if ( (networkID == MAIN_NET && nValidHeight > nCheckTxFeeForkHeight) //for mainnet, need hardcode here, compatible with old data
+        || (networkID == TEST_NET && nValidHeight > 100000) // for testnet, need hardcode here, compatible with old data
+        || (networkID == REGTEST_NET) ) {  // for regtest net, must do the check
+        return llFees >= nMinTxFee;
+    }
+    // else  no need to check MinTxFee
+    return true;
+}
+
 bool CRegisterAccountTx::ExecuteTx(int nIndex, CAccountViewCache &view, CValidationState &state, CTxUndo &txundo,
         int nHeight, CTransactionDBCache &txCache, CScriptDBViewCache &scriptDB)
 {
@@ -458,19 +471,13 @@ bool CRegisterAccountTx::CheckTransaction(CValidationState &state, CAccountViewC
         return state.DoS(100, ERRORMSG("CRegisterAccountTx::CheckTransaction, register tx public key is invalid"),
             REJECT_INVALID, "bad-regtx-publickey");
 
-    if (!MoneyRange(llFees))
+    if (!CheckMoneyRange(llFees))
         return state.DoS(100, ERRORMSG("CRegisterAccountTx::CheckTransaction, register tx fee out of range"),
             REJECT_INVALID, "bad-regtx-fee-toolarge");
 
-    //check the fees must be more than nMinTxFee
-    NET_TYPE networkID = SysCfg().NetworkID();
-    if ( (networkID == MAIN_NET && nValidHeight > nCheckRegisterAccountTxFeeForkHeight) //for mainnet, need hardcode here, compatible with old data
-        || (networkID == TEST_NET && nValidHeight > 27900) // for testnet, need hardcode here, compatible with old data
-        || (networkID == REGTEST_NET) ) {  // for regtest net, must do the check
-
-        if (llFees < nMinTxFee)
-            return state.DoS(100, ERRORMSG("CRegisterAccountTx::CheckTransaction, register tx fee smaller than MinTxFee"),
-                REJECT_INVALID, "bad-regtx-fee-toosmall");
+    if (!CheckMinTxFee(llFees)) {
+        return state.DoS(100, ERRORMSG("CRegisterAccountTx::CheckTransaction, register tx fee smaller than MinTxFee"),
+            REJECT_INVALID, "bad-regtx-fee-toosmall");
     }
 
     //check signature script
@@ -713,9 +720,14 @@ bool CTransaction::CheckTransaction(CValidationState &state, CAccountViewCache &
     //     return state.DoS(100, ERRORMSG("CTransaction::CheckTransaction() : desUserId must NOT be the same as srcRegId"),
     //         REJECT_INVALID, "desaddr-same-error");
 
-    if (!MoneyRange(llFees))
+    if (!CheckMoneyRange(llFees))
         return state.DoS(100, ERRORMSG("CTransaction::CheckTransaction() : tx fee out of money range"),
             REJECT_INVALID, "bad-appeal-fee-toolarge");
+
+    if (!CheckMinTxFee(llFees)) {
+        return state.DoS(100, ERRORMSG("CTransaction::CheckTransaction, tx fee smaller than MinTxFee"),
+            REJECT_INVALID, "bad-regtx-fee-toosmall");
+    }
 
     CAccount srcAccount;
     if (!view.GetAccount(boost::get<CRegID>(srcRegId), srcAccount))
@@ -997,9 +1009,14 @@ bool CRegisterContractTx::CheckTransaction(CValidationState &state, CAccountView
             REJECT_INVALID, "regacctid-type-error");
     }
 
-    if (!MoneyRange(llFees)) {
+    if (!CheckMoneyRange(llFees)) {
         return state.DoS(100, ERRORMSG("CheckTransaction() : CRegisterContractTx CheckTransaction, tx fee out of range"),
             REJECT_INVALID, "fee-too-large");
+    }
+
+    if (!CheckMinTxFee(llFees)) {
+        return state.DoS(100, ERRORMSG("CRegisterContractTx::CheckTransaction, tx fee smaller than MinTxFee"),
+            REJECT_INVALID, "bad-regtx-fee-toosmall");
     }
 
     uint64_t llFuel = ceil(script.size()/100) * GetFuelRate(scriptDB);
@@ -1155,9 +1172,14 @@ bool CDelegateTransaction::CheckTransaction(CValidationState &state, CAccountVie
         return state.DoS(100, ERRORMSG("CheckTransaction() : CDelegateTransaction the deletegates number a transaction can't exceeds maximum"),
             REJECT_INVALID, "deletegates-number-error");
     }
-    if (!MoneyRange(llFees))
+    if (!CheckMoneyRange(llFees))
         return state.DoS(100, ERRORMSG("CheckTransaction() : CDelegateTransaction CheckTransaction, delegate tx fee out of range"),
             REJECT_INVALID, "bad-regtx-fee-toolarge");
+
+    if (!CheckMinTxFee(llFees)) {
+        return state.DoS(100, ERRORMSG("CDelegateTransaction::CheckTransaction, tx fee smaller than MinTxFee"),
+            REJECT_INVALID, "bad-regtx-fee-toosmall");
+    }
 
     CKeyID sendTxKeyID;
     if(!view.GetKeyId(userId, sendTxKeyID)) {
@@ -1390,8 +1412,9 @@ string CAccount::ToString(bool isAddress) const {
 }
 
 bool CAccount::IsMoneyOverflow(uint64_t nAddMoney) {
-    if (!MoneyRange(nAddMoney))
+    if (!CheckMoneyRange(nAddMoney))
         return ERRORMSG("money:%lld too larger than MaxMoney");
+
     return true;
 }
 

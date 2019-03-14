@@ -179,7 +179,7 @@ public:
         genesis.SetHashMerkleRoot(genesis.BuildMerkleTree());
         hashGenesisBlock = genesis.GetHash();
         nDefaultPort = IniCfg().GetnDefaultPort(REGTEST_NET) ;
-        nTargetSpacing = 10;
+        nBlockInterval = 10;
         strDataDir = "regtest";
         assert(hashGenesisBlock == IniCfg().GetIntHash(REGTEST_NET));
 
@@ -197,7 +197,7 @@ public:
         CTestNetParams::InitialConfig();
 
         nSubsidyHalvingInterval = GetArg("-subsidyhalvinginterval", IniCfg().GetHalvingInterval(REGTEST_NET));
-        nTargetSpacing = GetArg("-targetspacing", 10);
+        nBlockInterval = GetArg("-blockinterval", 10);
         fServer = true;
         return true;
     }
@@ -427,13 +427,13 @@ CBaseParams::CBaseParams() {
     fReindex = false;
     fBenchmark = false;
     fTxIndex = false;
-    nIntervalPos = 1;
-    nLogmaxsize = 100 * 1024 * 1024;//100M
+    // nMaxForkHeight = 24 * 60 * 6; //8640
+    nLogMaxSize = 100 * 1024 * 1024;//100M
     nTxCacheHeight = 500;
     nTimeBestReceived = 0;
     nScriptCheckThreads = 0;
     nViewCacheSize = 2000000;
-    nTargetSpacing = 10;
+    nBlockInterval = 10;
     nSubsidyHalvingInterval = 0;
     paytxfee = 10000;
     nDefaultPort = 0;

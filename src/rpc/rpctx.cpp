@@ -128,14 +128,12 @@ Array GetTxAddressDetail(std::shared_ptr<CBaseTransaction> pBaseTx)
     Array arrayDetail;
     Object obj;
     std::set<CKeyID> vKeyIdSet;
-    switch(pBaseTx->nTxType)
-    {
+    switch(pBaseTx->nTxType) {
     case REWARD_TX:
     {
-        if(!pBaseTx->GetAddress(vKeyIdSet, *pAccountViewTip, *pScriptDBTip))
-        {
+        if (!pBaseTx->GetAddress(vKeyIdSet, *pAccountViewTip, *pScriptDBTip))
             return arrayDetail;
-        }
+
         obj.push_back(Pair("address", vKeyIdSet.begin()->ToAddress()));
         obj.push_back(Pair("category", "receive"));
         double dAmount = static_cast<double>(pBaseTx->GetValue()) / COIN;
@@ -146,10 +144,9 @@ Array GetTxAddressDetail(std::shared_ptr<CBaseTransaction> pBaseTx)
     }
     case REG_ACCT_TX:
     {
-        if(!pBaseTx->GetAddress(vKeyIdSet, *pAccountViewTip, *pScriptDBTip))
-        {
+        if (!pBaseTx->GetAddress(vKeyIdSet, *pAccountViewTip, *pScriptDBTip))
             return arrayDetail;
-        }
+
         obj.push_back(Pair("address", vKeyIdSet.begin()->ToAddress()));
         obj.push_back(Pair("category", "send"));
         double dAmount = static_cast<double>(pBaseTx->GetValue()) / COIN;
@@ -206,7 +203,7 @@ Array GetTxAddressDetail(std::shared_ptr<CBaseTransaction> pBaseTx)
         objRec.push_back(Pair("category", "receive"));
         objRec.push_back(Pair("amount", dAmount));
         arrayDetail.push_back(objRec);
-        if(pBaseTx->nTxType == CONTRACT_TX) {
+        if (pBaseTx->nTxType == CONTRACT_TX) {
             vector<CVmOperate> vOutput;
             pScriptDBTip->ReadTxOutPut(pBaseTx->GetHash(), vOutput);
             Array outputArray;
@@ -638,7 +635,7 @@ Value registercontracttx(const Array& params, bool fHelp)
 
     if (params.size() > 4) {
         string scriptDesc = params[4].get_str();
-        vmScript.ScriptExplain.insert(vmScript.ScriptExplain.end(), scriptDesc.begin(), scriptDesc.end());
+        vmScript.ScriptMemo.insert(vmScript.ScriptMemo.end(), scriptDesc.begin(), scriptDesc.end());
     }
 
     vector<unsigned char> vscript;
@@ -1751,37 +1748,37 @@ Value listcontracts(const Array& params, bool fHelp) {
     if (pScriptDBTip != NULL) {
         int nCount(0);
         if (!pScriptDBTip->GetScriptCount(nCount))
-            throw JSONRPCError(RPC_DATABASE_ERROR, "get script error: cannot get registered count.");
+            throw JSONRPCError(RPC_DATABASE_ERROR, "get contract error: cannot get registered contract number.");
         CRegID regId;
         vector<unsigned char> vScript;
         Object script;
         if (!pScriptDBTip->GetScript(0, regId, vScript))
-            throw JSONRPCError(RPC_DATABASE_ERROR, "get script error: cannot get registered script.");
-        script.push_back(Pair("scriptId", regId.ToString()));
+            throw JSONRPCError(RPC_DATABASE_ERROR, "get contract error: cannot get registered contract.");
+        script.push_back(Pair("contractregid", regId.ToString()));
         CDataStream ds(vScript, SER_DISK, CLIENT_VERSION);
         CVmScript vmScript;
         ds >> vmScript;
-        string strDes(vmScript.ScriptExplain.begin(), vmScript.ScriptExplain.end());
-        script.push_back(Pair("description", HexStr(vmScript.ScriptExplain)));
+        string strDes(vmScript.ScriptMemo.begin(), vmScript.ScriptMemo.end());
+        script.push_back(Pair("memo", HexStr(vmScript.ScriptMemo)));
 
         if (showDetail)
-            script.push_back(Pair("scriptContent", HexStr(vmScript.Rom.begin(), vmScript.Rom.end())));
+            script.push_back(Pair("contract", HexStr(vmScript.Rom.begin(), vmScript.Rom.end())));
         arrayScript.push_back(script);
         while (pScriptDBTip->GetScript(1, regId, vScript)) {
             Object obj;
-            obj.push_back(Pair("scriptId", regId.ToString()));
+            obj.push_back(Pair("contractregid", regId.ToString()));
             CDataStream ds(vScript, SER_DISK, CLIENT_VERSION);
             CVmScript vmScript;
             ds >> vmScript;
-            string strDes(vmScript.ScriptExplain.begin(), vmScript.ScriptExplain.end());
-            obj.push_back(Pair("description", HexStr(vmScript.ScriptExplain)));
+            string strDes(vmScript.ScriptMemo.begin(), vmScript.ScriptMemo.end());
+            obj.push_back(Pair("memo", HexStr(vmScript.ScriptMemo)));
             if (showDetail)
-                obj.push_back(Pair("scriptContent", HexStr(vmScript.Rom.begin(), vmScript.Rom.end())));
+                obj.push_back(Pair("contract", HexStr(vmScript.Rom.begin(), vmScript.Rom.end())));
             arrayScript.push_back(obj);
         }
     }
 
-    obj.push_back(Pair("listregedscript", arrayScript));
+    obj.push_back(Pair("contracts", arrayScript));
     return obj;
 }
 
@@ -1818,7 +1815,7 @@ Value getcontractinfo(const Array& params, bool fHelp) {
     CDataStream ds(vScript, SER_DISK, CLIENT_VERSION);
     CVmScript vmScript;
     ds >> vmScript;
-    obj.push_back(Pair("description", HexStr(vmScript.ScriptExplain)));
+    obj.push_back(Pair("contract_memo", HexStr(vmScript.ScriptMemo)));
     obj.push_back(Pair("contract_content", HexStr(vmScript.Rom.begin(), vmScript.Rom.end())));
     return obj;
 }
@@ -2453,8 +2450,8 @@ Value genregistercontractraw(const Array& params, bool fHelp) {
     }
 
     if (params.size() > 5) {
-        string scriptDesc = params[5].get_str();
-        vmScript.ScriptExplain.insert(vmScript.ScriptExplain.end(), scriptDesc.begin(), scriptDesc.end());
+        string scriptMemo = params[5].get_str();
+        vmScript.ScriptMemo.insert(vmScript.ScriptMemo.end(), scriptMemo.begin(), scriptMemo.end());
     }
 
     if (fee > 0 && fee < CTransaction::nMinTxFee) {

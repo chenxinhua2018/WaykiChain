@@ -195,6 +195,8 @@ public:
     virtual uint64_t GetFuel(int nfuelRate);
     virtual uint64_t GetValue() const = 0;
     int GetFuelRate(CScriptDBViewCache &scriptDB);
+protected:
+    bool CheckMinTxFee(uint64_t llFees);
 };
 
 class CRegisterAccountTx : public CBaseTransaction {
@@ -760,14 +762,6 @@ public:
         return *this;
     }
     std::shared_ptr<CAccount> GetNewInstance() const { return std::make_shared<CAccount>(*this); }
-
-    // Fixme
-    bool IsMiner(int nCurHeight) {
-        //      if(nCurHeight < 2*SysCfg().GetIntervalPos())
-        //          return true;
-        //      return nCoinDay >= llValues * SysCfg().GetIntervalPos();
-        return true;
-    }
     bool IsRegistered() const { return (PublicKey.IsFullyValid() && PublicKey.GetKeyID() == keyID); }
     bool SetRegId(const CRegID &regID) {
         this->regID = regID;
@@ -790,7 +784,6 @@ public:
            << VARINT(nVoteHeight) << vVoteFunds << llVotes;
         return ss.GetHash();
     }
-    uint64_t GetMaxCoinDay(int nCurHeight) { return llValues * SysCfg().GetMaxDay(); }
     bool UpDateAccountPos(int nCurHeight);
 
     IMPLEMENT_SERIALIZE(

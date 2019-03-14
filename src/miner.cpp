@@ -152,45 +152,6 @@ void IncrementExtraNonce(CBlock *pblock, CBlockIndex *pindexPrev, unsigned int &
     pblock->GetHashMerkleRoot() = pblock->BuildMerkleTree();
 }
 
-struct CAccountComparator {
-    bool operator()(const CAccount &a, const CAccount &b) {
-        CAccount &a1 = const_cast<CAccount &>(a);
-        CAccount &b1 = const_cast<CAccount &>(b);
-        if (a1.llVotes < b1.llVotes) {
-            return false;
-        }
-        if (a1.llVotes > b1.llVotes) {
-            return true;
-        }
-        if (a1.llValues < b1.llValues) {
-            return false;
-        }
-        if (a1.llValues > b1.llValues) {
-            return false;
-        }
-        return false;
-    }
-};
-
-uint256 GetAdjustHash(const uint256 TargetHash, const uint64_t nPos, const int nCurHeight) {
-    uint64_t posacc = nPos / COIN;
-    posacc /= SysCfg().GetIntervalPos();
-    posacc                   = max(posacc, (uint64_t)1);
-    arith_uint256 adjusthash = UintToArith256(TargetHash);  //adjust nbits
-    arith_uint256 minhash    = SysCfg().ProofOfWorkLimit();
-
-    while (posacc) {
-        adjusthash = adjusthash << 1;
-        posacc     = posacc >> 1;
-        if (adjusthash > minhash) {
-            adjusthash = minhash;
-            break;
-        }
-    }
-
-    return std::move(ArithToUint256(adjusthash));
-}
-
 bool GetDelegatesAcctList(vector<CAccount> &vDelegatesAcctList, CAccountViewCache &accViewIn, CScriptDBViewCache &scriptCacheIn) {
     LOCK(cs_main);
     CAccountViewCache accView(accViewIn, true);
@@ -241,7 +202,7 @@ bool GetDelegatesAcctList(vector<CAccount> &vDelegatesAcctList) {
 }
 
 bool GetCurrentDelegate(const int64_t currentTime, const vector<CAccount> &vDelegatesAcctList, CAccount &delegateAcct) {
-    int64_t slot = currentTime / SysCfg().GetTargetSpacing();
+    int64_t slot = currentTime / SysCfg().GetBlockInterval();
     int miner    = slot % IniCfg().GetDelegatesNum();
     delegateAcct = vDelegatesAcctList[miner];
     LogPrint("DEBUG", "currentTime=%lld, slot=%d, miner=%d, minderAddr=%s\n",
@@ -262,7 +223,7 @@ bool CreatePosTx(const int64_t currentTime, const CAccount &delegate, CAccountVi
         if (!view.GetAccount(preBlockRewardTx->account, preDelegate)) {
             return ERRORMSG("get preblock delegate account info error");
         }
-        if (currentTime - preBlock.GetBlockTime() < SysCfg().GetTargetSpacing()) {
+        if (currentTime - preBlock.GetBlockTime() < SysCfg().GetBlockInterval()) {
             if (preDelegate.regID == delegate.regID)
                 return ERRORMSG("one delegate can't produce more than one block at the same slot");
         }
@@ -340,7 +301,7 @@ bool VerifyPosTx(const CBlock *pBlock, CAccountViewCache &accView, CTransactionD
         if (!view.GetAccount(preBlockRewardTx->account, preDelegate))
             return ERRORMSG("get preblock delegate account info error");
 
-        if (pBlock->GetBlockTime() - preBlock.GetBlockTime() < SysCfg().GetTargetSpacing()) {
+        if (pBlock->GetBlockTime() - preBlock.GetBlockTime() < SysCfg().GetBlockInterval()) {
             if (preDelegate.regID == curDelegate.regID)
                 return ERRORMSG("one delegate can't produce more than one block at the same slot");
         }
@@ -569,7 +530,7 @@ bool static MineBlock(CBlock *pblock, CWallet *pwallet, CBlockIndex *pindexPrev,
             return false;
 
         auto GetNextTimeAndSleep = [&]() {
-            while (GetTime() == nLastTime || (GetTime() - pindexPrev->GetBlockTime()) < SysCfg().GetTargetSpacing()) {
+            while (GetTime() == nLastTime || (GetTime() - pindexPrev->GetBlockTime()) < SysCfg().GetBlockInterval()) {
                 ::MilliSleep(100);
             }
             return (nLastTime = GetTime());
@@ -679,8 +640,14 @@ void static CoinMiner(CWallet *pwallet, int targetHeight) {
             if (SysCfg().NetworkID() != REGTEST_NET) {
                 // Busy-wait for the network to come online so we don't waste time mining
                 // on an obsolete chain. In regtest mode we expect to fly solo.
-                while (vNodes.empty() || (chainActive.Tip() && chainActive.Tip()->nHeight > 1 && GetAdjustedTime() - chainActive.Tip()->nTime > 60 * 60))
+                while ( vNodes.empty() ||
+                        (chainActive.Tip() &&
+                        chainActive.Tip()->nHeight > 1 &&
+                        GetAdjustedTime() - chainActive.Tip()->nTime > 60 * 60 &&
+                        !SysCfg().GetBoolArg("-genblockforce", false)) ) {
+                    // LogPrint("INFO", "sleep 1");
                     MilliSleep(1000);
+                }
             }
 
             //
@@ -745,7 +712,7 @@ void MinedBlockInfo::SetNull()
 {
     nTime = 0;
     nNonce = 0;
-    nHeight = 0;  
+    nHeight = 0;
     nTotalFuels = 0;
     nFuelRate = 0;
     nTotalFees = 0;
@@ -756,9 +723,9 @@ void MinedBlockInfo::SetNull()
 }
 
 
-int64_t MinedBlockInfo::GetReward() 
+int64_t MinedBlockInfo::GetReward()
 {
-    return nTotalFees - nTotalFuels; 
+    return nTotalFees - nTotalFuels;
 }
 
 
@@ -772,4 +739,3 @@ std::vector<MinedBlockInfo> GetMinedBlocks(unsigned int count)
     }
     return ret;
 }
-
