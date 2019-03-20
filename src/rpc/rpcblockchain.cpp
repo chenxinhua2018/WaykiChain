@@ -48,7 +48,7 @@ double GetDifficulty(const CBlockIndex* blockindex)
     return dDiff;
 }
 
-Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex)
+Object BlockToJSON(const CBlock& block, const CBlockIndex* blockindex)
 {
     Object result;
     result.push_back(Pair("hash", block.GetHash().GetHex()));
@@ -179,7 +179,7 @@ Value getrawmempool(const Array& params, bool fHelp)
             set<string> setDepends;
 //            BOOST_FOREACH(const CTxIn& txin, tx.vin)
 //            {
-//                if (mempool.exists(txin.prevout.hash))
+//                if (mempool.Exists(txin.prevout.hash))
 //                    setDepends.insert(txin.prevout.hash.ToString());
 //            }
             Array depends(setDepends.begin(), setDepends.end());
@@ -189,7 +189,7 @@ Value getrawmempool(const Array& params, bool fHelp)
         return o;
     } else {
         vector<uint256> vtxid;
-        mempool.queryHashes(vtxid);
+        mempool.QueryHash(vtxid);
 
         Array a;
         for (const auto& hash : vtxid)
@@ -294,7 +294,7 @@ Value getblock(const Array& params, bool fHelp)
         return strHex;
     }
 
-    return blockToJSON(block, pblockindex);
+    return BlockToJSON(block, pblockindex);
 }
 
 Value verifychain(const Array& params, bool fHelp)

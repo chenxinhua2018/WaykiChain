@@ -621,7 +621,7 @@ bool AcceptToMemoryPool(CTxMemPool &pool, CValidationState &state, CBaseTransact
 
     // is it already in the memory pool?
     uint256 hash = pBaseTx->GetHash();
-    if (pool.exists(hash))
+    if (pool.Exists(hash))
         return state.Invalid(ERRORMSG("AcceptToMemoryPool() : tx[%s] already in mempool",
             hash.GetHex()), REJECT_INVALID, "tx-already-in-mempool");
 
@@ -698,8 +698,8 @@ bool AcceptToMemoryPool(CTxMemPool &pool, CValidationState &state, CBaseTransact
                 hash.ToString(), nFees, SysCfg().GetMaxFee());
 
         // Store transaction in memory
-        if (!pool.addUnchecked(hash, entry, state))
-            return ERRORMSG("AcceptToMemoryPool: : addUnchecked failed hash:%s \r\n", hash.ToString());
+        if (!pool.AddUnchecked(hash, entry, state))
+            return ERRORMSG("AcceptToMemoryPool: : AddUnchecked failed hash:%s \r\n", hash.ToString());
     }
 
     g_signals.SyncTransaction(hash, pBaseTx, NULL);
@@ -734,7 +734,7 @@ int CMerkleTx::GetDepthInMainChainINTERNAL(CBlockIndex *&pindexRet) const {
 int CMerkleTx::GetDepthInMainChain(CBlockIndex *&pindexRet) const {
     AssertLockHeld(cs_main);
     int nResult = GetDepthInMainChainINTERNAL(pindexRet);
-    if (nResult == 0 && !mempool.exists(pTx->GetHash()))
+    if (nResult == 0 && !mempool.Exists(pTx->GetHash()))
         return -1;  // Not in chain, not in mempool
 
     return nResult;
@@ -773,7 +773,7 @@ bool GetTransaction(std::shared_ptr<CBaseTransaction> &pBaseTx, const uint256 &h
         LOCK(cs_main);
         {
             if (bSearchMemPool == true) {
-                pBaseTx = mempool.lookup(hash);
+                pBaseTx = mempool.Lookup(hash);
                 if (pBaseTx.get())
                     return true;
             }
@@ -1691,7 +1691,7 @@ bool static DisconnectTip(CValidationState &state) {
         CValidationState stateDummy;
         if (!ptx->IsCoinBase()) {
             if (!AcceptToMemoryPool(mempool, stateDummy, ptx.get(), false)) {
-                mempool.remove(ptx.get(), removed, true);
+                mempool.Remove(ptx.get(), removed, true);
             } else
                 uiInterface.ReleaseTransaction(ptx->GetHash());
         } else {
@@ -2205,15 +2205,8 @@ bool CheckBlockProofWorkWithCoinDay(const CBlock &block, CBlockIndex *pPreBlockI
     return true;
 }
 
-bool CheckBlock(const CBlock &block, CValidationState &state, CAccountViewCache &view, CScriptDBViewCache &scriptDBCache,
-                bool fCheckTx, bool fCheckMerkleRoot)
-{
-    // These are checks that are independent of context
-    // that can be verified before saving an orphan block.
-
-    unsigned int nBlockSize = ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION);
-    // Size limits
-    if (block.vptx.empty() || block.vptx.size() > MAX_BLOCK_SIZE || nBlockSize > MAX_BLOCK_SIZE)
+bool CheckBlock(const CBlock &block, CValidationState &state, CAccountViewCache &view, CScriptDBViewCache &scriptDBCache, bool fCheckTx, bool fCheckMerkleRoot) {
+    if (block.vptx.empty() || block.vptx.size() > MAX_BLOCK_SIZE || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION) > MAX_BLOCK_SIZE)
         return state.DoS(100, ERRORMSG("CheckBlock() : size limits failed"),
             REJECT_INVALID, "bad-blk-length");
 
@@ -2476,7 +2469,7 @@ void PushGetBlocksOnCondition(CNode *pnode, CBlockIndex *pindexBegin, uint256 ha
 }
 
 bool ProcessBlock(CValidationState &state, CNode *pfrom, CBlock *pblock, CDiskBlockPos *dbp) {
-    //  int64_t llBeginTime = GetTimeMillis();
+    int64_t llBeginTime = GetTimeMillis();
     //  LogPrint("INFO", "ProcessBlock() enter:%lld\n", llBeginTime);
     AssertLockHeld(cs_main);
     // Check for duplicate
@@ -2494,28 +2487,6 @@ bool ProcessBlock(CValidationState &state, CNode *pfrom, CBlock *pblock, CDiskBl
         LogPrint("INFO", "CheckBlock() id: %d elapse time:%lld ms\n", chainActive.Height(), GetTimeMillis() - llBeginCheckBlockTime);
         return ERRORMSG("ProcessBlock() :block hash:%s CheckBlock FAILED", pblock->GetHash().GetHex());
     }
-    //    LogPrint("INFO", "CheckBlock() elapse time:%lld ms\n", GetTimeMillis() - llBeginCheckBlockTime);
-    //    CBlockIndex* pcheckpoint = Checkpoints::GetLastCheckpoint(mapBlockIndex);
-    //    if (pcheckpoint && pblock->hashPrevBlock != (chainActive.Tip() ? chainActive.Tip()->GetBlockHash() : uint256(0)))
-    //    {
-    //        // Extra checks to prevent "fill up memory by spamming with bogus blocks"
-    //        int64_t deltaTime = pblock->GetBlockTime() - pcheckpoint->nTime;
-    //        if (deltaTime < 0)
-    //        {
-    //            return state.DoS(100, ERRORMSG("ProcessBlock() : block with timestamp before last checkpoint"),
-    //                             REJECT_CHECKPOINT, "time-too-old");
-    //        }
-    //        CBigNum bnNewBlock;
-    //        bnNewBlock.SetCompact(pblock->nBits);
-    //        CBigNum bnRequired;
-    //        bnRequired.SetCompact(ComputeMinWork(pcheckpoint->nBits, deltaTime));
-    //        if (bnNewBlock > bnRequired)
-    //        {
-    //            return state.DoS(100, ERRORMSG("ProcessBlock() : block with too little proof-of-work\n"
-    //                  " bnNewBlock:%s \n bnRequired:%s \n hash:%s \n prevHash:%s", bnNewBlock.getuint256().GetHex(), bnRequired.getuint256().GetHex(), pblock->GetHash().GetHex(), pblock->hashPrevBlock.GetHex()),
-    //                             REJECT_INVALID, "bad-diffbits");
-    //        }
-    //    }
 
     // If we don't already have its previous block, shunt it off to holding area until we get it
     if (!pblock->GetHashPrevBlock().IsNull() && !mapBlockIndex.count(pblock->GetHashPrevBlock())) {
@@ -2571,7 +2542,10 @@ bool ProcessBlock(CValidationState &state, CNode *pfrom, CBlock *pblock, CDiskBl
                 ss >> block;
             }
             block.BuildMerkleTree();
-            // Use a dummy CValidationState so someone can't setup nodes to counter-DoS based on orphan resolution (that is, feeding people an invalid block based on LegitBlockX in order to get anyone relaying LegitBlockX banned)
+            /**
+             * Use a dummy CValidationState so someone can't setup nodes to counter-DoS based on orphan resolution
+             * (that is, feeding people an invalid block based on LegitBlockX in order to get anyone relaying LegitBlockX banned)
+             */
             CValidationState stateDummy;
             if (AcceptBlock(block, stateDummy)) {
                 vWorkQueue.push_back(mi->second->hashBlock);
@@ -2583,8 +2557,7 @@ bool ProcessBlock(CValidationState &state, CNode *pfrom, CBlock *pblock, CDiskBl
         mapOrphanBlocksByPrev.erase(hashPrev);
     }
 
-    // LogPrint("INFO", "ProcessBlock() elapse time:%lld ms\n", GetTimeMillis() - llBeginTime);
-    // LogPrint("INFO","ProcessBlock: ACCEPTED\n");
+    LogPrint("INFO", "ProcessBlock() elapse time:%lld ms\n", GetTimeMillis() - llBeginTime);
     return true;
 }
 
@@ -3296,7 +3269,7 @@ bool static AlreadyHave(const CInv &inv) {
     switch (inv.type) {
         case MSG_TX: {
             bool txInMap = false;
-            txInMap      = mempool.exists(inv.hash);
+            txInMap      = mempool.Exists(inv.hash);
             return txInMap || mapOrphanTransactions.count(inv.hash);
         }
         case MSG_BLOCK:
@@ -3360,7 +3333,6 @@ void static ProcessGetData(CNode *pfrom) {
                             // they must either disconnect and retry or request the full block.
                             // Thus, the protocol spec specified allows for us to provide duplicate txn here,
                             // however we MUST always provide at least what the remote peer needs
-                            //                            typedef pair<unsigned int, uint256> PairType;
                             for (auto &pair : merkleBlock.vMatchedTxn)
                                 if (!pfrom->setInventoryKnown.count(CInv(MSG_TX, pair.second)))
                                     pfrom->PushMessage("tx", block.vptx[pair.first]);
@@ -3393,7 +3365,7 @@ void static ProcessGetData(CNode *pfrom) {
                     }
                 }
                 if (!pushed && inv.type == MSG_TX) {
-                    std::shared_ptr<CBaseTransaction> pBaseTx = mempool.lookup(inv.hash);
+                    std::shared_ptr<CBaseTransaction> pBaseTx = mempool.Lookup(inv.hash);
                     if (pBaseTx.get()) {
                         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
                         ss.reserve(1000);
@@ -3761,8 +3733,6 @@ bool static ProcessMessage(CNode *pfrom, string strCommand, CDataStream &vRecv)
     }
 
     else if (strCommand == "tx") {
-        vector<uint256> vWorkQueue;
-        vector<uint256> vEraseQueue;
         std::shared_ptr<CBaseTransaction> pBaseTx = CreateNewEmptyTransaction(vRecv[0]);
 
         if (REWARD_TX == pBaseTx->nTxType)
@@ -3778,8 +3748,6 @@ bool static ProcessMessage(CNode *pfrom, string strCommand, CDataStream &vRecv)
         if (AcceptToMemoryPool(mempool, state, pBaseTx.get(), true)) {
             RelayTransaction(pBaseTx.get(), inv.hash);
             mapAlreadyAskedFor.erase(inv);
-            vWorkQueue.push_back(inv.hash);
-            vEraseQueue.push_back(inv.hash);
 
             LogPrint("INFO", "AcceptToMemoryPool: %s %s : accepted %s (poolsz %u)\n",
                 pfrom->addr.ToString(), pfrom->cleanSubVer,
@@ -3796,10 +3764,10 @@ bool static ProcessMessage(CNode *pfrom, string strCommand, CDataStream &vRecv)
                 state.GetRejectReason());
 
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(), state.GetRejectReason(), inv.hash);
-            //          if (nDoS > 0) {
-            //              LogPrint("INFO", "Misebehaving, add to tx hash %s mempool error, Misbehavior add %d",  pBaseTx->GetHash().GetHex(), nDoS);
-            //              Misbehaving(pfrom->GetId(), nDoS);
-            //          }
+            // if (nDoS > 0) {
+            //     LogPrint("INFO", "Misebehaving, add to tx hash %s mempool error, Misbehavior add %d", pBaseTx->GetHash().GetHex(), nDoS);
+            //     Misbehaving(pfrom->GetId(), nDoS);
+            // }
         }
     }
 
@@ -3834,12 +3802,12 @@ bool static ProcessMessage(CNode *pfrom, string strCommand, CDataStream &vRecv)
         LOCK2(cs_main, pfrom->cs_filter);
 
         vector<uint256> vtxid;
-        mempool.queryHashes(vtxid);
+        mempool.QueryHash(vtxid);
         vector<CInv> vInv;
         for (auto &hash : vtxid) {
             CInv inv(MSG_TX, hash);
             CTransaction tx;
-            std::shared_ptr<CBaseTransaction> pBaseTx = mempool.lookup(hash);
+            std::shared_ptr<CBaseTransaction> pBaseTx = mempool.Lookup(hash);
             if (pBaseTx.get())
                 continue;  // another thread removed since queryHashes, maybe...
 

@@ -328,19 +328,17 @@ class CTransactionDBView {
     virtual bool IsContainBlock(const CBlock &block);
     virtual bool AddBlockToCache(const CBlock &block);
     virtual bool DeleteBlockFromCache(const CBlock &block);
-    virtual bool LoadTransaction(map<uint256, vector<uint256> > &mapTxHashByBlockHash);
-    virtual bool BatchWrite(const map<uint256, vector<uint256> > &mapTxHashByBlockHashIn);
+    virtual bool BatchWrite(const map<uint256, set<uint256> > &mapTxHashByBlockHashIn);
     virtual ~CTransactionDBView(){};
 };
 
 class CTransactionDBViewBacked : public CTransactionDBView {
    protected:
     CTransactionDBView *pBase;
-    bool LoadTransaction(map<uint256, vector<uint256> > &mapTxHashByBlockHash);
 
    public:
     CTransactionDBViewBacked(CTransactionDBView &transactionView);
-    bool BatchWrite(const map<uint256, vector<uint256> > &mapTxHashByBlockHashIn);
+    bool BatchWrite(const map<uint256, set<uint256> > &mapTxHashByBlockHashIn);
     uint256 HasTx(const uint256 &txHash);
     bool IsContainBlock(const CBlock &block);
     bool AddBlockToCache(const CBlock &block);
@@ -350,8 +348,8 @@ class CTransactionDBViewBacked : public CTransactionDBView {
 class CTransactionDBCache : public CTransactionDBViewBacked {
    private:
     CTransactionDBCache(CTransactionDBCache &transactionView);
-    map<uint256, vector<uint256> > mapTxHashByBlockHash;  // key:block hash  value:tx hash
-    bool IsInMap(const map<uint256, vector<uint256> > &mMap, const uint256 &hash) const;
+    map<uint256, set<uint256> > mapTxHashByBlockHash;  // key:block hash  value:tx hash
+    bool IsInMap(const map<uint256, set<uint256> > &mMap, const uint256 &hash) const;
 
    public:
     CTransactionDBCache(CTransactionDBView &pTxCacheDB, bool fDummy);
@@ -359,47 +357,16 @@ class CTransactionDBCache : public CTransactionDBViewBacked {
     bool AddBlockToCache(const CBlock &block);
     bool DeleteBlockFromCache(const CBlock &block);
     uint256 HasTx(const uint256 &txHash);
-    map<uint256, vector<uint256> > GetTxHashCache(void);
-    bool BatchWrite(const map<uint256, vector<uint256> > &mapTxHashByBlockHashIn);
-    void AddTxHashCache(const uint256 &blockHash, const vector<uint256> &vTxHash);
+    map<uint256, set<uint256> > GetTxHashCache();
+    bool BatchWrite(const map<uint256, set<uint256> > &mapTxHashByBlockHashIn);
+    void AddTxHashCache(const uint256 &blockHash, const set<uint256> &vTxHash);
     bool Flush();
-    bool LoadTransaction();
     void Clear();
     Object ToJsonObj() const;
     int GetSize();
     void SetBaseData(CTransactionDBView *pNewBase);
-    const map<uint256, vector<uint256> > &GetCacheMap();
-    void SetCacheMap(const map<uint256, vector<uint256> > &mapCache);
+    const map<uint256, set<uint256> > &GetCacheMap();
+    void SetCacheMap(const map<uint256, set<uint256> > &mapCache);
 };
-
-//class CDelegateDBView {
-//
-//public:
-//    virtual bool ModifyDelegatesVote(const vector<unsigned char> &vScriptId, uint64_t llVotes);
-//    virtual bool BatchWrite(const map<vector<unsigned char>, bool> &mapVoteAccount);
-//    virtual bool GetTopXDelegateAccount(vector<vector<unsigned char> > &listScriptId);
-//    virtual ~CDelegateDBView(){};
-//};
-
-//class CDelegateDBViewBacked : public CDelegateDBView {
-//protected:
-//    CDelegateDBView * pBase;
-//public:
-//    bool ModifyDelegatesVote(const vector<unsigned char> &vScriptId, uint64_t llVotes);
-//    bool BatchWrite(const map< vector<unsigned char>, bool> &mapVoteAccount);
-//    bool GetTopXDelegateAccount(int n, vector<vector<unsigned char> > &listScriptId);
-//};
-//
-//
-//class CDelegateDBCache : public CDelegateDBViewBacked{
-//public:
-//    map<vector<unsigned char>, bool> ;
-//private:
-//    CDelegateDBCache(CDelegateDBCache &DelegateView);
-//public:
-//    bool ModifyDelegatesVote(const vector<unsigned char> &vScriptId, uint64_t llVotes);
-//    bool BatchWrite(const map< vector<unsigned char>, bool> &mapVoteAccount);
-//    bool GetTopXDelegateAccount(int n, vector<vector<unsigned char> > &listScriptId);
-//};
 
 #endif

@@ -110,7 +110,7 @@ Object GetTxDetailJSON(const uint256& txhash) {
             }
         }
         {
-            pBaseTx = mempool.lookup(txhash);
+            pBaseTx = mempool.Lookup(txhash);
             if (pBaseTx.get()) {
                 obj = pBaseTx->ToJson(*pAccountViewTip);
                 CDataStream ds(SER_DISK, CLIENT_VERSION);
@@ -330,7 +330,7 @@ Value gettransaction(const Array& params, bool fHelp)
         }
     if(!findTx)
     {
-        pBaseTx = mempool.lookup(txhash);
+        pBaseTx = mempool.Lookup(txhash);
         if(pBaseTx == nullptr) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid txhash");
         }
@@ -574,16 +574,16 @@ Value registercontracttx(const Array& params, bool fHelp)
             "1.\"addr\": (string required) contract owner address from this wallet\n"
             "2.\"filepath\": (string required), the file path of the app script\n"
             "3.\"fee\": (numeric required) pay to miner (the larger the size of script, the bigger fees are required)\n"
-            "4.\"height\": (numeric optional)valid height, when not specified, the tip block hegiht in chainActive will be used\n"
-            "5.\"appdesc\":(string optional) new app description\n"
+            "4.\"height\": (numeric optional) valid height, when not specified, the tip block hegiht in chainActive will be used\n"
+            "5.\"appdesc\": (string optional) new app description\n"
             "\nResult:\n"
             "\"txhash\": (string)\n"
             "\nExamples:\n"
             + HelpExampleCli("registercontracttx",
-                "\"WiZx6rrsBn9sHjwpvdwtMNNX2o31s3DEHH\" \"myapp.lua\" \"010203040506\" \"100000\" (\"appdesc\")") +
+                "\"WiZx6rrsBn9sHjwpvdwtMNNX2o31s3DEHH\" \"myapp.lua\" 1000000 (10000) (\"appdesc\")") +
                 "\nAs json rpc call\n"
             + HelpExampleRpc("registercontracttx",
-                "WiZx6rrsBn9sHjwpvdwtMNNX2o31s3DEHH \"myapp.lua\" \"010203040506\" \"100000\" (\"appdesc\")"));
+                "WiZx6rrsBn9sHjwpvdwtMNNX2o31s3DEHH \"myapp.lua\" 1000000 (10000) (\"appdesc\")"));
     }
 
     RPCTypeCheck(params, list_of(str_type)(str_type)(int_type)(int_type)(str_type));
@@ -597,7 +597,7 @@ Value registercontracttx(const Array& params, bool fHelp)
 
     std::tuple<bool, string> result = CVmlua::CheckScriptSyntax(luaScriptFilePath.c_str());
     bool bOK = std::get<0>(result);
-    if(!bOK)
+    if (!bOK)
         throw JSONRPCError(RPC_INVALID_PARAMS, std::get<1>(result));
 
     FILE* file = fopen(luaScriptFilePath.c_str(), "rb+");
@@ -611,7 +611,7 @@ Value registercontracttx(const Array& params, bool fHelp)
 
     if (lSize <= 0 || lSize > nContractScriptMaxSize) { // contract script file size must be <= 64 KB)
         fclose(file);
-        throw JSONRPCError(RPC_INVALID_PARAMS, "File size exceeds 64 KB limit.");
+        throw JSONRPCError(RPC_INVALID_PARAMS, (lSize == -1) ? "File size is unknown" : ((lSize == 0) ? "File is empty" : "File size exceeds 64 KB limit."));
     }
 
     // allocate memory to contain the whole file:
@@ -660,14 +660,13 @@ Value registercontracttx(const Array& params, bool fHelp)
     assert(pwalletMain != NULL);
     CRegisterContractTx tx;
     {
-        //  LOCK2(cs_main, pwalletMain->cs_wallet);
         EnsureWalletIsUnlocked();
         //balance
         CAccountViewCache view(*pAccountViewTip, true);
         CAccount account;
 
         uint64_t balance = 0;
-        CUserID userId = keyid;
+        CUserID userId   = keyid;
         if (view.GetAccount(userId, account)) {
             balance = account.GetRawBalance();
         }
@@ -686,9 +685,9 @@ Value registercontracttx(const Array& params, bool fHelp)
         view.GetRegId(keyid, regId);
 
         tx.regAcctId = regId;
-        tx.script = vscript;
-        tx.llFees = fee;
-        tx.nRunStep = vscript.size();
+        tx.script    = vscript;
+        tx.llFees    = fee;
+        tx.nRunStep  = vscript.size();
         if (0 == height) {
             height = chainActive.Tip()->nHeight;
         }
@@ -1380,9 +1379,9 @@ Value getaccountinfo(const Array& params, bool fHelp) {
                 "Returns account details.\n"
                 "\nResult:\n"
                 "\nExamples:\n"
-                + HelpExampleCli("getaccountinfo", "WT52jPi8DhHUC85MPYK8y8Ajs8J7CshgaB\n")
+                + HelpExampleCli("getaccountinfo", "WT52jPi8DhHUC85MPYK8y8Ajs8J7CshgaB")
                 + "\nAs json rpc call\n"
-                + HelpExampleRpc("getaccountinfo", "WT52jPi8DhHUC85MPYK8y8Ajs8J7CshgaB\n")
+                + HelpExampleRpc("getaccountinfo", "\"WT52jPi8DhHUC85MPYK8y8Ajs8J7CshgaB\"")
            );
     }
     RPCTypeCheck(params, list_of(str_type));
@@ -1405,13 +1404,13 @@ Value getaccountinfo(const Array& params, bool fHelp) {
                 if (pwalletMain->GetPubKey(keyid, pk)) {
                     pwalletMain->GetPubKey(keyid, minerpk, true);
                     account.PublicKey = pk;
-                    account.keyID = std::move(pk.GetKeyID());
+                    account.keyID = pk.GetKeyID();
                     if (pk != minerpk && !account.MinerPKey.IsValid()) {
                         account.MinerPKey = minerpk;
                     }
                 }
             }
-            obj = std::move(account.ToJsonObj(true));
+            obj = account.ToJsonObj(true);
             obj.push_back(Pair("position", "inblock"));
         } else { //unregistered keyid
             CPubKey pk;
@@ -1423,7 +1422,7 @@ Value getaccountinfo(const Array& params, bool fHelp) {
                 if (minerpk != pk) {
                     account.MinerPKey = minerpk;
                 }
-                obj = std::move(account.ToJsonObj(true));
+                obj = account.ToJsonObj(true);
                 obj.push_back(Pair("position", "inwallet"));
             }
         }
@@ -1455,128 +1454,19 @@ Value listunconfirmedtx(const Array& params, bool fHelp) {
     return retObj;
 }
 
-// //sign
-// Value sign(const Array& params, bool fHelp) {
-//     if (fHelp || params.size() != 2) {
-//         throw runtime_error("sign \"addr\" \"str\"\n"
-//                 "\ndigitally sign \"str\" by the private key associated with \"address\"\n"
-//                 "\nArguments:\n"
-//                 "1.\"addr\": the signer address\n"
-//                 "2.\"str\": (string) \n"
-//                 "\nResult:\n"
-//                 "\"signhash\": (string)\n"
-//                 "\nExamples:\n"
-//                 + HelpExampleCli("sign",
-//                     "0001a87352387b5b4d6d01299c0dc178ff044f42e016970b0dc7ea9c72c08e2e494a01020304100000")
-//                 + "\nAs json rpc call\n"
-//                 + HelpExampleRpc("sign",
-//                     "0001a87352387b5b4d6d01299c0dc178ff044f42e016970b0dc7ea9c72c08e2e494a01020304100000"));
-//     }
-
-//     //get keyid
-//     CKeyID keyid;
-//     if (!GetKeyId(params[0].get_str(), keyid)) {
-//         throw runtime_error("in sign: send address err\n");
-//     }
-//     //get string to be signed
-//     vector<unsigned char> vchSignStr(ParseHex(params[1].get_str()));
-
-//     vector<unsigned char> vsign;
-//     {
-//         LOCK(pwalletMain->cs_wallet);
-
-//         CKey key;
-//         if (!pwalletMain->GetKey(keyid, key)) {
-//             throw JSONRPCError(RPC_WALLET_ERROR, "sign Error: cannot find key.");
-//         }
-
-//         uint256 hash = Hash(vchSignStr.begin(), vchSignStr.end());
-//         if (!key.Sign(hash, vsign)) {
-//             throw JSONRPCError(RPC_WALLET_ERROR, "sign Error: Sign failed.");
-//         }
-//     }
-//     Object retObj;
-//     retObj.push_back(Pair("signeddata", HexStr(vsign)));
-//     return retObj;
-// }
-
-//Value getaccountinfo(const Array& params, bool fHelp) {
-//  if (fHelp || params.size() != 1) {
-//      throw runtime_error(
-//              "getaccountinfo \"address \" dspay address ( \"comment\" \"comment-to\" )\n"
-//                      "\nGet an account info with dspay address\n" + HelpRequiringPassphrase() + "\nArguments:\n"
-//                      "1. \"address \"  (string, required) The Coin address.\n"
-//                      "\nResult:\n"
-//                      "\"account info\"  (string) \n"
-//                      "\nExamples:\n" + HelpExampleCli("getaccountinfo", "\"1M72Sfpbz1BPpXFHz9m3CdqATR44Jvaydd\"")
-//                      + HelpExampleCli("getaccountinfo", "\"000000010100\"")
-//
-//                      );
-//  }
-//  CAccountViewCache view(*pAccountViewTip, true);
-//  string strParam = params[0].get_str();
-//  CAccount aAccount;
-//  if (strParam.length() != 12) {
-//      CCoinAddress address(params[0].get_str());
-//      CKeyID keyid;
-//      if (!address.GetKeyID(keyid))
-//          throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Coin address");
-//
-//      CUserID userId = keyid;
-//      if (!view.GetAccount(userId, aAccount)) {
-//          return "can not get account info by address:" + strParam;
-//      }
-//  } else {
-//      CRegID regId(ParseHex(strParam));
-//      if (!view.GetAccount(regId, aAccount)) {
-//          return "can not get account info by regid:" + strParam;
-//      }
-//  }
-//  string fundTypeArray[] = {"NULL_FUNDTYPE", "FREEDOM", "REWARD_FUND", "FREEDOM_FUND", "FREEZD_FUND", "SELF_FREEZD_FUND"};
-//
-//  Object obj;
-//  obj.push_back(Pair("keyID:", aAccount.keyID.ToString()));
-//  obj.push_back(Pair("publicKey:", aAccount.publicKey.ToString()));
-//  obj.push_back(Pair("llValues:", tinyformat::format("%s", aAccount.llValues)));
-//  Array array;
-//  //string str = ("fundtype  txhash                                  value                        height");
-//  string str = tinyformat::format("%-20.20s%-20.20s%-25.8lf%-6.6d", "fundtype", "scriptid", "value", "height");
-//  array.push_back(str);
-//  for (int i = 0; i < aAccount.vRewardFund.size(); ++i) {
-//      CFund fund = aAccount.vRewardFund[i];
-//      array.push_back(tinyformat::format("%-20.20s%-20.20s%-25.8lf%-6.6d",fundTypeArray[fund.nFundType], HexStr(fund.scriptID), fund.value, fund.nHeight));
-//  }
-//
-//  for (int i = 0; i < aAccount.vFreedomFund.size(); ++i) {
-//      CFund fund = aAccount.vFreedomFund[i];
-//      array.push_back(tinyformat::format("%-20.20s%-20.20s%-25.8lf%-6.6d",fundTypeArray[fund.nFundType], HexStr(fund.scriptID), fund.value, fund.nHeight));
-//  }
-//  for (int i = 0; i < aAccount.vFreeze.size(); ++i) {
-//      CFund fund = aAccount.vFreeze[i];
-//      array.push_back(tinyformat::format("%-20.20s%-20.20s%-25.8lf%-6.6d",fundTypeArray[fund.nFundType], HexStr(fund.scriptID), fund.value, fund.nHeight));
-//  }
-//  for (int i = 0; i < aAccount.vSelfFreeze.size(); ++i) {
-//      CFund fund = aAccount.vSelfFreeze[i];
-//      array.push_back(tinyformat::format("%-20.20s%-20.20s%-25.8lf%-6.6d",fundTypeArray[fund.nFundType], HexStr(fund.scriptID), fund.value, fund.nHeight));
-//  }
-//  obj.push_back(Pair("detailinfo:", array));
-//  return obj;
-//}
-
 static Value AccountLogToJson(const CAccountLog &accoutLog) {
     Object obj;
     obj.push_back(Pair("keyid", accoutLog.keyID.ToString()));
     obj.push_back(Pair("llValues", accoutLog.llValues));
     obj.push_back(Pair("nHeight", accoutLog.nVoteHeight));
-//  Array array;
-//  for(auto const &te: accoutLog.vRewardFund)
-//  {
-//      Object obj2;
-//      obj2.push_back(Pair("value",  te.value));
-//      obj2.push_back(Pair("nHeight",  te.nHeight));
-//      array.push_back(obj2);
-//  }
-//  obj.push_back(Pair("vRewardFund", array));
+    // Array array;
+    // for (auto const& te : accoutLog.vRewardFund) {
+    //     Object obj2;
+    //     obj2.push_back(Pair("value", te.value));
+    //     obj2.push_back(Pair("nHeight", te.nHeight));
+    //     array.push_back(obj2);
+    // }
+    // obj.push_back(Pair("vRewardFund", array));
     return obj;
 }
 
@@ -1720,7 +1610,7 @@ Value resetclient(const Array& params, bool fHelp) {
 
         CBlock firs = SysCfg().GenesisBlock();
         pwalletMain->SyncTransaction(uint256(), NULL, &firs);
-        mempool.clear();
+        mempool.Clear();
     } else {
         throw JSONRPCError(RPC_WALLET_ERROR, "restclient Error: Reset failed.");
     }
@@ -1885,7 +1775,7 @@ Value listtxcache(const Array& params, bool fHelp) {
                 "\"txcache\"  (string) \n"
                 "\nExamples:\n" + HelpExampleCli("listtxcache", "")+ HelpExampleRpc("listtxcache", ""));
     }
-    const map<uint256, vector<uint256> > &mapTxHashByBlockHash = pTxCacheTip->GetTxHashCache();
+    const map<uint256, set<uint256> > &mapTxHashByBlockHash = pTxCacheTip->GetTxHashCache();
 
     Array retTxHashArray;
     for (auto &item : mapTxHashByBlockHash) {
@@ -2280,17 +2170,17 @@ Value genregisteraccountraw(const Array& params, bool fHelp) {
     return obj;
 }
 
-Value submittx(const Array& params, bool fHelp) {
+Value sendrawtx(const Array& params, bool fHelp) {
     if (fHelp || params.size() != 1) {
         throw runtime_error(
-            "submittx \"transaction\" \n"
-            "\nsubmit transaction\n"
+            "sendrawtx \"transaction\" \n"
+            "\nsend raw transaction\n"
             "\nArguments:\n"
             "1.\"transaction\": (string, required)\n"
             "\nExamples:\n"
-            + HelpExampleCli("submittx", "\"n2dha9w3bz2HPVQzoGKda3Cgt5p5Tgv6oj\"")
+            + HelpExampleCli("sendrawtx", "\"n2dha9w3bz2HPVQzoGKda3Cgt5p5Tgv6oj\"")
             + "\nAs json rpc call\n"
-            + HelpExampleRpc("submittx", "\"n2dha9w3bz2HPVQzoGKda3Cgt5p5Tgv6oj\""));
+            + HelpExampleRpc("sendrawtx", "\"n2dha9w3bz2HPVQzoGKda3Cgt5p5Tgv6oj\""));
     }
     //EnsureWalletIsUnlocked();
     vector<unsigned char> vch(ParseHex(params[0].get_str()));
@@ -2301,7 +2191,7 @@ Value submittx(const Array& params, bool fHelp) {
     std::tuple<bool, string> ret;
     ret = pwalletMain->CommitTransaction((CBaseTransaction *) tx.get());
     if (!std::get<0>(ret))
-        throw JSONRPCError(RPC_WALLET_ERROR, "submittx error: " + std::get<1>(ret));
+        throw JSONRPCError(RPC_WALLET_ERROR, "sendrawtx error: " + std::get<1>(ret));
 
     Object obj;
     obj.push_back(Pair("hash", std::get<1>(ret)));
