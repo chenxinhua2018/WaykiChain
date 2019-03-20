@@ -97,7 +97,7 @@ Value getcontractscript(const Array& params, bool fHelp) {
         }
 
         if(regContractTx == NULL) {
-            pBaseTx = mempool.lookup(txhash);
+            pBaseTx = mempool.Lookup(txhash);
             if (!(pBaseTx)) {
                 regContractTx = (CRegisterContractTx *)pBaseTx.get();
             }
