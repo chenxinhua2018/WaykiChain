@@ -343,7 +343,7 @@ static const CRPCCommand vRPCCommands[] =
 
     //////////////////////////////////////////////
     // ex
-    { "getcontractscript",      &getcontractscript,      true,      false,      true },
+    RPC_COMMANDS_EX
 };
 
 CRPCTable::CRPCTable() {

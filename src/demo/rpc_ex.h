@@ -20,5 +20,13 @@ using namespace json_spirit;
 
 extern Value getcontractscript(const Array& params, bool fHelp);
 
+extern Value exportblockdata(const Array& params, bool fHelp);
+
+//static const CRPCCommand vRPCCommands[] =
+//{ //  name                      actor (function)         okSafeMode threadSafe reqWallet
+#define  RPC_COMMANDS_EX \
+        { "getcontractscript",      &getcontractscript,      true,      false,      true }, \
+        { "exportblockdata",        &exportblockdata,        true,      false,      true },
+
 
 #endif//RPC_EX_H_
