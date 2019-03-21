@@ -154,8 +154,82 @@ std::tuple<bool, boost::thread*> RunCoin(int argc, char* argv[])
   return std::make_tuple (fRet,detectShutdownThread);
 }
 
-int main(int argc, char* argv[]) {
+const std::string secretStr = "12345678901234567890123456789012";
+const std::vector<unsigned char> secret = std::vector<unsigned char>(secretStr.begin(), secretStr.end());
 
+int test1() {
+    CKey key;
+    key.Set(secret.begin(), secret.end(), true);
+    if (!key.IsValid()) {
+        std::cout << "error: key invalid" << std::endl;
+        return 1;
+    }
+
+    std::cout << "secret hex: " << HexStr(key.begin(), key.end()) << std::endl;
+    CPrivKey privKey = key.GetPrivKey();
+    std::cout << "priv key hex: " << HexStr(privKey.begin(), privKey.end()) << std::endl;
+    CPubKey pubKey = key.GetPubKey();
+    std::cout << "pub key hex: " << HexStr(pubKey.begin(), pubKey.end()) << std::endl;
+
+    uint256 hash(secret);
+    vector<unsigned char> vchSig;
+
+    std::cout << "sig hash: " << HexStr(hash.begin(), hash.end()) << std::endl;
+    if (!key.Sign(hash, vchSig)) {
+        std::cout << "error: key.Sign failed" << std::endl;
+        return 1;
+    }
+
+    std::cout << "signature hex: " << HexStr(vchSig) << std::endl;
+    return 0;
+}
+
+int test2() {
+    std::cout << "-----------------------------------------------" << std::endl;
+    CKey key;
+    key.Set(secret.begin(), secret.end(), true);
+    if (!key.IsValid()) {
+        std::cout << "error: key invalid" << std::endl;
+        return 1;
+    }
+
+    std::string wiccSignature = "3045022100fa05d7bc263accb4e3a57091bd5c5aab6303358188cb4f2f8ed703f785642dd30220256a58de3fec38d859747aed67dc71c4d5bba6da8430c35b8410ecdc2af86bff";
+    std::string btcSignature = "304402200648ea12a0a4e8ff2d0632b8c99560769eb311e062a7e2ae06e05ec7c95060530220235f8d19eda9d77cea86f5883615b80d25c103d1f3064336363ca5bbe3c9d48a";
+
+    CPubKey pubKey = key.GetPubKey();
+    if (!pubKey.IsValid()) {
+        std::cout << "error: pubKey invalid" << std::endl;
+        return 1;
+    }
+    //std::cout << "pub key hex: " << HexStr(pubKey.begin(), pubKey.end()) << std::endl;
+
+    uint256 hash(secret);
+    auto wiccSign = ParseHex(wiccSignature);
+    assert(wiccSign.size() == 71);
+    bool wiccRet = pubKey.Verify(hash, wiccSign);
+    std::cout << "wicc verify signature: " << wiccRet << std::endl;
+
+    auto btcSign = ParseHex(btcSignature);
+    assert(btcSign.size() == 70);
+    bool btcRet = pubKey.Verify(hash, btcSign);
+    std::cout << "btc verify signature: " << btcRet << std::endl;
+
+    return 0;
+}
+
+const std::string str123 = "123";
+int testHash() {
+    auto h1 = Hash(str123.begin(), str123.end());
+    std::cout << "str123 hash: " << h1.ToString() << std::endl;
+    return 0;
+}
+
+int main(int argc, char* argv[]) {
+    test1();
+    test2();
+    testHash();
+    return 0;
+/*
 	std::tuple<bool, boost::thread*> ret = RunCoin(argc,argv);
 
 	boost::thread* detectShutdownThread  = std::get<1>(ret);
@@ -178,4 +252,5 @@ int main(int argc, char* argv[]) {
 		return 0;
 
 	return (fRet ? 0 : 1);
+    */
 }
