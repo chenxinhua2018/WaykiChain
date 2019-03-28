@@ -8,7 +8,8 @@ wicc_demo_LDADD = \
   libcoin_common.a \
   liblua53.a \
   $(LIBLEVELDB) \
-  $(LIBMEMENV)
+  $(LIBMEMENV) \
+  $(LIBSECP256K1)
 
 wicc_demo_SOURCES = wicc_demo.cpp
 

@@ -57,7 +57,7 @@ Value getcontractscript(const Array& params, bool fHelp) {
 
     Object obj;
     CRegisterContractTx *regContractTx = NULL;
-    std::shared_ptr<CBaseTransaction> pBaseTx;
+    std::shared_ptr<CBaseTx> pBaseTx;
     {
         LOCK(cs_main);
         CBlock genesisblock;
@@ -119,7 +119,7 @@ Value getcontractscript(const Array& params, bool fHelp) {
         
         FILE* file = fopen(filePath.c_str(), "w");
         if (file != NULL) {
-            fwrite(&vmScript.Rom[0], 1, vmScript.Rom.size(), file);
+            fwrite(&vmScript.GetRom()[0], 1, vmScript.GetRom().size(), file);
             fclose(file);        
         }
     }
@@ -369,7 +369,7 @@ Value exportblockdata(const Array& params, bool fHelp)
         for(size_t txIndex = 0; txIndex < block.vptx.size(); txIndex++) {
             TableRowMap txRow;
             txTableId++;
-            CBaseTransaction &tx = *block.vptx[txIndex];
+            CBaseTx &tx = *block.vptx[txIndex];
             txRow["id"] = txTableId;
             txRow["hash"] = tx.GetHash().ToString();
             txRow["Height"] = block.GetHeight();
@@ -381,7 +381,7 @@ Value exportblockdata(const Array& params, bool fHelp)
             txRow["fuelRate"] = tx.nFuelRate;
 
             if (tx.nTxType == REWARD_TX) {
-                CRewardTransaction &rewardTx = (CRewardTransaction&)tx;
+                CRewardTx &rewardTx = (CRewardTx&)tx;
 
                 txRow["userIdType"] = GetUidTypeName(rewardTx.account);
                 txRow["userId"] = GetUidString(rewardTx.account);
@@ -392,34 +392,42 @@ Value exportblockdata(const Array& params, bool fHelp)
                 txRow["userIdType"] = GetUidTypeName(regAcctTx.userId);
                 txRow["userId"] = GetUidString(regAcctTx.userId);
 
-                auto minerId = 
                 txRow["minerIdType"] = GetUidTypeName(regAcctTx.minerId);
                 txRow["minerId"] = GetUidString(regAcctTx.minerId);;
 
                 txRow["fees"] = regAcctTx.llFees;
                 txRow["signature"] = HexStr(regAcctTx.signature);
-            } else if (tx.nTxType == COMMON_TX || tx.nTxType == CONTRACT_TX) {
-                CTransaction &transaction = (CTransaction&)tx;
+            } else if (tx.nTxType == COMMON_TX) {
+                CCommonTx &commonTx = (CCommonTx&)tx;
 
-                txRow["userIdType"] = GetUidTypeName(transaction.srcRegId);
-                txRow["userId"] = GetUidString(transaction.srcRegId);
+                txRow["userIdType"] = GetUidTypeName(commonTx.srcRegId);
+                txRow["userId"] = GetUidString(commonTx.srcRegId);
 
-
-                auto destUserId = 
-                txRow["destIdType"] = GetUidTypeName(transaction.desUserId);
-                txRow["destId"] = GetUidString(transaction.desUserId);
-                txRow["fees"] = transaction.llFees;
-                txRow["values"] = transaction.llValues;
+                txRow["destIdType"] = GetUidTypeName(commonTx.desUserId);
+                txRow["destId"] = GetUidString(commonTx.desUserId);
+                txRow["fees"] = commonTx.llFees;
+                txRow["values"] = commonTx.llValues;
                 if (tx.nTxType == COMMON_TX) {
-                    txRow["description"] = HexStr(transaction.vContract);
+                    txRow["description"] = HexStr(commonTx.memo);
                 } else {
-                    txRow["contract"] = HexStr(transaction.vContract);
+                    txRow["contract"] = HexStr(commonTx.memo);
                 }
-                txRow["signature"] = HexStr(transaction.signature);
+                txRow["signature"] = HexStr(commonTx.signature);
+            } else if (tx.nTxType == CONTRACT_TX) {
+                CContractTx &contractTx = (CContractTx&)tx;
+
+                txRow["userIdType"] = GetUidTypeName(contractTx.srcRegId);
+                txRow["userId"] = GetUidString(contractTx.srcRegId);
+
+                txRow["destIdType"] = GetUidTypeName(contractTx.desUserId);
+                txRow["destId"] = GetUidString(contractTx.desUserId);
+                txRow["fees"] = contractTx.llFees;
+                txRow["values"] = contractTx.llValues;
+                txRow["arguments"] = HexStr(contractTx.arguments);
+                txRow["signature"] = HexStr(contractTx.signature);
             } else if (tx.nTxType == REG_CONT_TX) {
                 CRegisterContractTx &regContractTx = (CRegisterContractTx&)tx;
 
-                auto userId = 
                 txRow["userIdType"] = GetUidTypeName(regContractTx.regAcctId);
                 txRow["userId"] = GetUidString(regContractTx.regAcctId);
 
@@ -439,20 +447,20 @@ Value exportblockdata(const Array& params, bool fHelp)
                 if (!scriptFile.is_open())
                     throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot open " + scriptFilePath + " script file for writing");
                 
-                if (vmScript.Rom.size() > 0) {
-                    scriptFile.write((const char*)&vmScript.Rom[0], vmScript.Rom.size() * sizeof(unsigned char));
+                if (vmScript.GetRom().size() > 0) {
+                    scriptFile.write((const char*)&vmScript.GetRom()[0], vmScript.GetRom().size() * sizeof(unsigned char));
                 }
                 scriptFile.close();
 
-                txRow["scriptSize"] = vmScript.Rom.size();
+                txRow["scriptSize"] = vmScript.GetRom().size();
                 txRow["scriptFile"] = scriptFilePath;
-                txRow["description"] = HexStr(vmScript.ScriptMemo);
+                txRow["description"] = HexStr(vmScript.GetMemo());
 
                 txRow["fees"] = regContractTx.llFees;
 
                 txRow["signature"] = HexStr(regContractTx.signature);
             } else if (tx.nTxType == DELEGATE_TX) {
-                CDelegateTransaction &delegateTx = (CDelegateTransaction&)tx;
+                CDelegateTx &delegateTx = (CDelegateTx&)tx;
 
                 auto userId = 
                 txRow["userIdType"] = GetUidTypeName(delegateTx.userId);
