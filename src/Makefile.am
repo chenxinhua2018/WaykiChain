@@ -3,6 +3,7 @@ include Makefile.include
 AM_CPPFLAGS += -I$(builddir)
 
 noinst_LIBRARIES = \
+  liblua53.a \
   libcoin_server.a \
   libcoin_common.a \
   libcoin_cli.a
@@ -19,13 +20,23 @@ endif
 SUBDIRS = . $(BUILD_QT) $(BUILD_P_TEST) $(BUILD_TEST)
 #DIST_SUBDIRS = . qt test
 DIST_SUBDIRS = . test ptest
+
+#secp256k1
+DIST_SUBDIRS += secp256k1
+LIBSECP256K1=secp256k1/libsecp256k1.la
+AM_CPPFLAGS += -I$(srcdir)/secp256k1/include -I$(srcdir)/secp256k1/contrib
+
+$(LIBSECP256K1): $(wildcard secp256k1/src/*.h) $(wildcard secp256k1/src/*.c) $(wildcard secp256k1/include/*)
+	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C $(@D) $(@F)
+
 .PHONY: FORCE
 # bitcoin core #
 coin_CORE_H = \
   addrman.h \
   alert.h \
   allocators.h \
-  base58.h bignum.h \
+  base58.h \
+  openssl.hpp \
   bloom.h \
   chainparams.h \
   clientversion.h \
@@ -78,7 +89,6 @@ JSON_H = \
   json/json_spirit_writer_template.h
 
 # VmScript #
-# VmScript #
 VMLUA_H = \
   vm/lua/lapi.h \
   vm/lua/lauxlib.h \
@@ -107,6 +117,41 @@ VMLUA_H = \
   vm/lua/lvm.h \
   vm/lua/lzio.h
 
+VMLUA_C = \
+  vm/lua/lapi.c \
+  vm/lua/lauxlib.c \
+  vm/lua/lbaselib.c \
+  vm/lua/lbitlib.c \
+  vm/lua/lcode.c \
+  vm/lua/lcorolib.c \
+  vm/lua/lctype.c \
+  vm/lua/ldblib.c \
+  vm/lua/ldebug.c \
+  vm/lua/ldo.c \
+  vm/lua/ldump.c \
+  vm/lua/lfunc.c \
+  vm/lua/lgc.c \
+  vm/lua/linit.c \
+  vm/lua/liolib.c \
+  vm/lua/llex.c \
+  vm/lua/lmathlib.c \
+  vm/lua/lmem.c \
+  vm/lua/loadlib.c \
+  vm/lua/lobject.c \
+  vm/lua/lopcodes.c \
+  vm/lua/loslib.c \
+  vm/lua/lparser.c \
+  vm/lua/lstate.c \
+  vm/lua/lstring.c \
+  vm/lua/lstrlib.c \
+  vm/lua/ltable.c \
+  vm/lua/ltablib.c \
+  vm/lua/ltm.c \
+  vm/lua/lundump.c \
+  vm/lua/lutf8lib.c \
+  vm/lua/lvm.c \
+  vm/lua/lzio.c
+
 VM_H = \
   vm/vmrunenv.h \
   vm/script.h \
@@ -126,6 +171,9 @@ obj/build.h: FORCE
 	@$(top_srcdir)/share/genbuild.sh $(abs_top_builddir)/src/obj/build.h \
 	  $(abs_top_srcdir)
 version.o: obj/build.h
+
+liblua53_a_SOURCES = \
+  $(VMLUA_C)
 
 libcoin_server_a_SOURCES = \
   tx.cpp \
@@ -211,22 +259,24 @@ coind_LDADD = \
   libcoin_common.a \
   liblua53.a \
   $(LIBLEVELDB) \
-  $(LIBMEMENV)
+  $(LIBMEMENV) \
+  $(LIBSECP256K1)
 #if ENABLE_WALLET
 #coin_LDADD += libcoin_wallet.a
 #endif
 coind_SOURCES = coind.cpp
-#
 
 if TARGET_WINDOWS
 coind_SOURCES += coind-res.rc
 endif
 
+liblua53_a_CFLAGS = -fPIC
+
 AM_CPPFLAGS += $(BDB_CPPFLAGS)
 coind_LDADD += $(BOOST_LIBS) $(BDB_LIBS)
 
 # NOTE: This dependency is not strictly necessary, but without it make may try to build both in parallel, which breaks the LevelDB build system in a race
-leveldb/libleveldb.a: leveldb/libmemenv.a
+$(LIBLEVELDB): $(LIBMEMENV)
 
 leveldb/%.a:
 	@echo "Building LevelDB ..." && $(MAKE) -C $(@D) $(@F) CXX="$(CXX)" \
@@ -237,9 +287,7 @@ qt/bitcoinstrings.cpp: $(libcoin_server_a_SOURCES) $(libcoin_common_a_SOURCES) $
 	@test -n $(XGETTEXT) || echo "xgettext is required for updating translations"
 	@cd $(top_srcdir); XGETTEXT=$(XGETTEXT) share/qt/extract_strings_qt.py
 
-#CLEANFILES = leveldb/libleveldb.a leveldb/libmemenv.a *.gcda *.gcno
-CLEANFILES =  *.gcda *.gcno
-#
+CLEANFILES = leveldb/libleveldb.a leveldb/libmemenv.a *.gcda *.gcno
 
 DISTCLEANFILES = obj/build.h
 
@@ -248,5 +296,7 @@ EXTRA_DIST = leveldb Makefile.include
 include makefile_ex
 
 clean-local:
+	-$(MAKE) -C secp256k1 clean
 	-$(MAKE) -C leveldb clean
+	-$(MAKE) -C lua53 clean
 	rm -f leveldb/*/*.gcno leveldb/helpers/memenv/*.gcno

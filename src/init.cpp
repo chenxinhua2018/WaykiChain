@@ -65,6 +65,8 @@ using namespace boost;
 
 CWallet *pwalletMain;
 
+static std::unique_ptr<ECCVerifyHandle> globalVerifyHandle;
+
 #ifdef WIN32
 // Win32 LevelDB doesn't use filedescriptors, and the ones used for
 // accessing block files, don't count towards to fd_set size limit
@@ -178,6 +180,10 @@ void Shutdown() {
 
     if (pwalletMain)
         delete pwalletMain;
+
+    // Uninitialize elliptic curve code
+    globalVerifyHandle.reset();
+    ECC_Stop();
 
     LogPrint("INFO", "Shutdown : done\n");
     printf("Shutdown : done\n");
@@ -305,8 +311,8 @@ string HelpMessage() {
         strUsage += "  -limitfreerelay=<n>    " + _("Continuously rate-limit free transactions to <n>*1000 bytes per minute (default:15)") + "\n";
         strUsage += "  -maxsigcachesize=<n>   " + _("Limit size of signature cache to <n> entries (default: 50000)") + "\n";
     }
-    strUsage += "  -mintxfee=<amt>        " + _("Fees smaller than this are considered zero fee (for transaction creation) (default:") + " " + FormatMoney(CTransaction::nMinTxFee) + ")" + "\n";
-    strUsage += "  -minrelaytxfee=<amt>   " + _("Fees smaller than this are considered zero fee (for relaying) (default:") + " " + FormatMoney(CTransaction::nMinRelayTxFee) + ")" + "\n";
+    strUsage += "  -mintxfee=<amt>        " + _("Fees smaller than this are considered zero fee (for transaction creation) (default:") + " " + FormatMoney(CBaseTx::nMinTxFee) + ")" + "\n";
+    strUsage += "  -minrelaytxfee=<amt>   " + _("Fees smaller than this are considered zero fee (for relaying) (default:") + " " + FormatMoney(CBaseTx::nMinRelayTxFee) + ")" + "\n";
     strUsage += "  -logprinttoconsole     " + _("Send trace/debug info to console instead of debug.log file") + "\n";
     if (SysCfg().GetBoolArg("-help-debug", false)) {
         strUsage += "  -printblock=<hash>     " + _("Print block on startup, if found in block index") + "\n";
@@ -458,6 +464,13 @@ bool AppInit(boost::thread_group &threadGroup) {
     sa_hup.sa_flags = 0;
     sigaction(SIGHUP, &sa_hup, NULL);
 
+    // Initialize elliptic curve code
+    ECC_Start();
+    globalVerifyHandle.reset(new ECCVerifyHandle());
+    // Sanity check
+    if (!ECC_InitSanityCheck())
+        return fprintf(stderr, "Elliptic curve cryptography sanity check failure. Aborting.");
+
 #if defined(__SVR4) && defined(__sun)
     // ignore SIGPIPE on Solaris
     signal(SIGPIPE, SIG_IGN);
@@ -548,7 +561,7 @@ bool AppInit(boost::thread_group &threadGroup) {
     if (SysCfg().IsArgCount("-mintxfee")) {
         int64_t n = 0;
         if (ParseMoney(SysCfg().GetArg("-mintxfee", ""), n) && n > 0) {
-            CTransaction::nMinTxFee = n;
+            CBaseTx::nMinTxFee = n;
         } else {
             return InitError(strprintf(_("Invalid amount for -mintxfee=<amount>: '%s'"), SysCfg().GetArg("-mintxfee", "")));
         }
@@ -556,7 +569,7 @@ bool AppInit(boost::thread_group &threadGroup) {
     if (SysCfg().IsArgCount("-minrelaytxfee")) {
         int64_t n = 0;
         if (ParseMoney(SysCfg().GetArg("-minrelaytxfee", ""), n) && n > 0) {
-            CTransaction::nMinRelayTxFee = n;
+            CBaseTx::nMinRelayTxFee = n;
         } else {
             return InitError(strprintf(_("Invalid amount for -minrelaytxfee=<amount>: '%s'"), SysCfg().GetArg("-minrelaytxfee", "")));
         }

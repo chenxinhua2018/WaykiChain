@@ -10,7 +10,6 @@
 #include <boost/filesystem/fstream.hpp>
 #include <vector>
 
-#include "bignum.h"
 #include "uint256.h"
 #include "arith_uint256.h"
 #include "util.h"
@@ -323,8 +322,8 @@ public:
     static bool IsArgCount(const string& strArg);
     static bool SoftSetArgCover(const string& strArg, const string& strValue);
     static void EraseArg(const string& strArgKey);
-    bool CreateGenesisRewardTx(vector<std::shared_ptr<CBaseTransaction> > &vRewardTx, NET_TYPE type);
-    bool CreateGenesisDelegateTx(vector<std::shared_ptr<CBaseTransaction> > &vDelegateTx, NET_TYPE type);
+    bool CreateGenesisRewardTx(vector<std::shared_ptr<CBaseTx> > &vRewardTx, NET_TYPE type);
+    bool CreateGenesisDelegateTx(vector<std::shared_ptr<CBaseTx> > &vDelegateTx, NET_TYPE type);
     static void ParseParameters(int argc, const char* const argv[]);
     static const vector<string> &GetMultiArgs(const string& strArg);
     static  int GetArgsSize();

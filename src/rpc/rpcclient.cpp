@@ -138,8 +138,6 @@ Array RPCConvertValues(const string &strMethod, const vector<string> &strParams)
     if (strMethod == "sendtoaddresswithfee"   && n == 3) { ConvertTo<double>(params[1]); ConvertTo<double>(params[2]); }
     if (strMethod == "sendtoaddresswithfee"   && n == 4) { ConvertTo<double>(params[2]); ConvertTo<double>(params[3]); }
 
-    if (strMethod == "notionalpoolingbalance" && n > 1) ConvertTo<double>(params[1]);
-
     // if (strMethod == "dispersebalance"        && n > 1) ConvertTo<double>(params[1]);
     if (strMethod == "settxfee"               && n > 0) ConvertTo<double>(params[0]); // deprecated
     if (strMethod == "setmintxfee"            && n > 0) ConvertTo<double>(params[0]);
@@ -228,12 +226,12 @@ Array RPCConvertValues(const string &strMethod, const vector<string> &strParams)
     if (strMethod == "genregisteraccountraw"  && n > 0) ConvertTo<double>(params[0]);
     if (strMethod == "genregisteraccountraw"  && n > 1) ConvertTo<int>(params[1]);
 
-    if (strMethod == "sendtoaddressraw"       && n > 0) ConvertTo<double>(params[0]);   //deprecated
-    if (strMethod == "sendtoaddressraw"       && n > 1) ConvertTo<double>(params[1]);   //deprecated
+    if (strMethod == "sendtoaddressraw"       && n > 2) ConvertTo<double>(params[2]);   //deprecated
+    if (strMethod == "sendtoaddressraw"       && n > 3) ConvertTo<double>(params[3]);   //deprecated
     if (strMethod == "sendtoaddressraw"       && n > 4) ConvertTo<int>(params[4]);      //deprecated
 
-    if (strMethod == "gensendtoaddressraw"    && n > 0) ConvertTo<double>(params[0]);
-    if (strMethod == "gensendtoaddressraw"    && n > 1) ConvertTo<double>(params[1]);
+    if (strMethod == "gensendtoaddressraw"    && n > 2) ConvertTo<double>(params[2]);
+    if (strMethod == "gensendtoaddressraw"    && n > 3) ConvertTo<double>(params[3]);
     if (strMethod == "gensendtoaddressraw"    && n > 4) ConvertTo<int>(params[4]);
 
     if (strMethod == "genregistercontractraw" && n > 0) ConvertTo<double>(params[0]);
@@ -260,7 +258,6 @@ Array RPCConvertValues(const string &strMethod, const vector<string> &strParams)
     // if (strMethod == "listtransactions"       && n > 2) ConvertTo<int64_t>(params[2]);
     if (strMethod == "listtransactionsv2"     && n > 1) ConvertTo<int>(params[1]);
     if (strMethod == "listtransactionsv2"     && n > 2) ConvertTo<int>(params[2]);
-    if (strMethod == "notionalpoolingasset"   && n > 2) ConvertTo<double>(params[2]);
 
     if (strMethod == "invalidateblock"        && n > 0) { if (params[0].get_str().size() < 32) ConvertTo<int>(params[0]); }
 

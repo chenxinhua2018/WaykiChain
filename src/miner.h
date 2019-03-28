@@ -23,14 +23,13 @@ struct CBlockTemplate;
 //class CReserveKey;
 //class CScript;
 class CWallet;
-class CBaseTransaction;
-class COrphan;
+class CBaseTx;
 class CAccountViewCache;
 class CTransactionDBCache;
 class CScriptDBViewCache;
 class CAccount;
 
-typedef boost::tuple<double, double, std::shared_ptr<CBaseTransaction> > TxPriority;
+typedef boost::tuple<double, double, std::shared_ptr<CBaseTx> > TxPriority;
 class TxPriorityCompare {
     bool byFee;
 
@@ -74,7 +73,7 @@ std::vector<MinedBlockInfo> GetMinedBlocks(unsigned int count);
 /** Run the miner threads */
 void GenerateCoinBlock(bool fGenerate, CWallet *pwallet, int nThreads);
 /** Generate a new block */
-CBlockTemplate *CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txCache, CScriptDBViewCache &scriptCache);
+unique_ptr<CBlockTemplate> CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txCache, CScriptDBViewCache &scriptCache);
 /** Modify the extranonce in a block */
 void IncrementExtraNonce(CBlock *pblock, CBlockIndex *pindexPrev, unsigned int &nExtraNonce);
 /** Do mining precalculation */

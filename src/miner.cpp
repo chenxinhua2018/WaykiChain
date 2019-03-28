@@ -41,44 +41,6 @@ const int MINED_BLOCK_COUNT_MAX = 100; // the max count of mined blocks will be 
 static const unsigned int pSHA256InitState[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f,
                                                  0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
 
-//void SHA256Transform(void* pstate, void* pinput, const void* pinit) {
-//  SHA256_CTX ctx;
-//  unsigned char data[64];
-//
-//  SHA256_Init(&ctx);
-//
-//  for (int i = 0; i < 16; i++)
-//      ((uint32_t*) data)[i] = ByteReverse(((uint32_t*) pinput)[i]);
-//
-//  for (int i = 0; i < 8; i++)
-//      ctx.h[i] = ((uint32_t*) pinit)[i];
-//
-//  SHA256_Update(&ctx, data, sizeof(data));
-//  for (int i = 0; i < 8; i++)
-//      ((uint32_t*) pstate)[i] = ctx.h[i];
-//}
-
-// Some explaining would be appreciated
-class COrphan {
-   public:
-    const CTransaction *ptx;
-    set<uint256> setDependsOn;
-    double dPriority;
-    double dFeePerKb;
-
-    COrphan(const CTransaction *ptxIn) {
-        ptx       = ptxIn;
-        dPriority = dFeePerKb = 0;
-    }
-
-    void Print() const {
-        LogPrint("INFO", "COrphan(hash=%s, dPriority=%.1f, dFeePerKb=%.1f)\n",
-                 ptx->GetHash().ToString(), dPriority, dFeePerKb);
-        for (const auto &hash : setDependsOn)
-            LogPrint("INFO", "   setDependsOn %s\n", hash.ToString());
-    }
-};
-
 uint64_t nLastBlockTx   = 0;  // 块中交易的总笔数,不含coinbase
 uint64_t nLastBlockSize = 0;  // 被创建的块的尺寸
 
@@ -126,7 +88,7 @@ void GetPriorityTx(vector<TxPriority> &vecPriority, int nFuelRate) {
     static double dFeePerKb     = 0;
     static unsigned int nTxSize = 0;
     for (map<uint256, CTxMemPoolEntry>::iterator mi = mempool.mapTx.begin(); mi != mempool.mapTx.end(); ++mi) {
-        CBaseTransaction *pBaseTx = mi->second.GetTx().get();
+        CBaseTx *pBaseTx = mi->second.GetTx().get();
         if (!pBaseTx->IsCoinBase() && uint256() == pTxCacheTip->HasTx(pBaseTx->GetHash())) {
             nTxSize   = ::GetSerializeSize(*pBaseTx, SER_NETWORK, PROTOCOL_VERSION);
             dFeePerKb = double(pBaseTx->GetFee() - pBaseTx->GetFuel(nFuelRate)) / (double(nTxSize) / 1000.0);
@@ -144,9 +106,6 @@ void IncrementExtraNonce(CBlock *pblock, CBlockIndex *pindexPrev, unsigned int &
         hashPrevBlock = pblock->GetHashPrevBlock();
     }
     ++nExtraNonce;
-    //  unsigned int nHeight = pindexPrev->nHeight + 1; // Height first in coinbase required for block.version=2
-    //    pblock->vtx[0].vin[0].scriptSig = (CScript() << nHeight << CBigNum(nExtraNonce)) + COINBASE_FLAGS;
-    //    assert(pblock->vtx[0].vin[0].scriptSig.size() <= 100);
 
     pblock->GetHashMerkleRoot() = pblock->BuildMerkleTree();
 }
@@ -218,7 +177,7 @@ bool CreatePosTx(const int64_t currentTime, const CAccount &delegate, CAccountVi
             return ERRORMSG("read block info fail from disk");
 
         CAccount preDelegate;
-        CRewardTransaction *preBlockRewardTx = (CRewardTransaction *)preBlock.vptx[0].get();
+        CRewardTx *preBlockRewardTx = (CRewardTx *)preBlock.vptx[0].get();
         if (!view.GetAccount(preBlockRewardTx->account, preDelegate)) {
             return ERRORMSG("get preblock delegate account info error");
         }
@@ -229,7 +188,7 @@ bool CreatePosTx(const int64_t currentTime, const CAccount &delegate, CAccountVi
     }
 
     pBlock->SetNonce(nNonce);
-    CRewardTransaction *prtx = (CRewardTransaction *)pBlock->vptx[0].get();
+    CRewardTx *prtx = (CRewardTx *)pBlock->vptx[0].get();
     prtx->account            = delegate.regID;  //记账人账户ID
     prtx->nHeight            = pBlock->GetHeight();
     pBlock->SetHashMerkleRoot(pBlock->BuildMerkleTree());
@@ -266,8 +225,7 @@ void ShuffleDelegates(const int nCurHeight, vector<CAccount> &vDelegatesList) {
 }
 
 bool VerifyPosTx(const CBlock *pBlock, CAccountViewCache &accView, CTransactionDBCache &txCache,
-                 CScriptDBViewCache &scriptCache, bool bNeedRunTx)
-{
+                 CScriptDBViewCache &scriptCache, bool bNeedRunTx) {
     uint64_t maxNonce = SysCfg().GetBlockMaxNonce();
     vector<CAccount> vDelegatesAcctList;
 
@@ -296,7 +254,7 @@ bool VerifyPosTx(const CBlock *pBlock, CAccountViewCache &accView, CTransactionD
             return ERRORMSG("read block info fail from disk");
 
         CAccount preDelegate;
-        CRewardTransaction *preBlockRewardTx = (CRewardTransaction *)preBlock.vptx[0].get();
+        CRewardTx *preBlockRewardTx = (CRewardTx *)preBlock.vptx[0].get();
         if (!view.GetAccount(preBlockRewardTx->account, preDelegate))
             return ERRORMSG("get preblock delegate account info error");
 
@@ -307,29 +265,36 @@ bool VerifyPosTx(const CBlock *pBlock, CAccountViewCache &accView, CTransactionD
     }
 
     CAccount account;
-    CRewardTransaction *prtx = (CRewardTransaction *)pBlock->vptx[0].get();
+    CRewardTx *prtx = (CRewardTx *)pBlock->vptx[0].get();
     if (view.GetAccount(prtx->account, account)) {
         if (curDelegate.regID != account.regID) {
             return ERRORMSG("Verify delegate account error, delegate regid=%s vs reward regid=%s!",
                 curDelegate.regID.ToString(), account.regID.ToString());
         }
 
-        if (!CheckSignScript(pBlock->SignatureHash(), pBlock->GetSignature(), account.PublicKey))
-            if (!CheckSignScript(pBlock->SignatureHash(), pBlock->GetSignature(), account.MinerPKey))
+        const uint256 &blockHash = pBlock->SignatureHash();
+        const vector<unsigned char> &blockSignature = pBlock->GetSignature();
+
+        if (blockSignature.size() == 0 || blockSignature.size() > MAX_BLOCK_SIGNATURE_SIZE) {
+            return ERRORMSG("Signature size of block invalid, hash=%s", blockHash.ToString());
+        }
+
+        if (!CheckSignScript(blockHash, blockSignature, account.PublicKey))
+            if (!CheckSignScript(blockHash, blockSignature, account.MinerPKey))
                 return ERRORMSG("Verify miner publickey signature error");
     } else {
         return ERRORMSG("AccountView has no accountid");
     }
 
     if (prtx->nVersion != nTxVersion1)
-        return ERRORMSG("CTransaction CheckTransaction,tx version is not equal current version, (tx version %d: vs current %d)",
+        return ERRORMSG("Verify tx version error, tx version %d: vs current %d",
             prtx->nVersion, nTxVersion1);
 
     if (bNeedRunTx) {
         int64_t nTotalFuel(0);
         uint64_t nTotalRunStep(0);
         for (unsigned int i = 1; i < pBlock->vptx.size(); i++) {
-            shared_ptr<CBaseTransaction> pBaseTx = pBlock->vptx[i];
+            shared_ptr<CBaseTx> pBaseTx = pBlock->vptx[i];
             if (uint256() != txCache.HasTx(pBaseTx->GetHash()))
                 return ERRORMSG("VerifyPosTx duplicate tx hash:%s", pBaseTx->GetHash().GetHex());
 
@@ -357,20 +322,20 @@ bool VerifyPosTx(const CBlock *pBlock, CAccountViewCache &accView, CTransactionD
     return true;
 }
 
-CBlockTemplate *CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txCache, CScriptDBViewCache &scriptCache)
-{
+unique_ptr<CBlockTemplate> CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txCache,
+                                          CScriptDBViewCache &scriptCache) {
     // Create new block
-    auto_ptr<CBlockTemplate> pblocktemplate(new CBlockTemplate());
+    unique_ptr<CBlockTemplate> pblocktemplate(new CBlockTemplate());
     if (!pblocktemplate.get())
         return NULL;
 
     CBlock *pblock = &pblocktemplate->block;  // pointer for convenience
 
     // Create coinbase tx
-    CRewardTransaction rewardTx;
+    CRewardTx rewardTx;
 
     // Add our coinbase tx as the first tx
-    pblock->vptx.push_back(std::make_shared<CRewardTransaction>(rewardTx));
+    pblock->vptx.push_back(std::make_shared<CRewardTx>(rewardTx));
     pblocktemplate->vTxFees.push_back(-1);    // updated at end
     pblocktemplate->vTxSigOps.push_back(-1);  // updated at end
 
@@ -387,7 +352,7 @@ CBlockTemplate *CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txC
     // Minimum block size you want to create; block will be filled with free transactions
     // until there are no more or the block reaches this size:
     unsigned int nBlockMinSize = SysCfg().GetArg("-blockminsize", DEFAULT_BLOCK_MIN_SIZE);
-    nBlockMinSize = min(nBlockMaxSize, nBlockMinSize);
+    nBlockMinSize              = min(nBlockMaxSize, nBlockMinSize);
 
     // Collect memory pool transactions into the block
     int64_t nFees = 0;
@@ -411,9 +376,9 @@ CBlockTemplate *CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txC
 
         while (!vTxPriority.empty()) {
             // Take highest priority transaction off the priority queue:
-            double dFeePerKb                 = vTxPriority.front().get<1>();
-            shared_ptr<CBaseTransaction> stx = vTxPriority.front().get<2>();
-            CBaseTransaction *pBaseTx        = stx.get();
+            double dFeePerKb        = vTxPriority.front().get<1>();
+            shared_ptr<CBaseTx> stx = vTxPriority.front().get<2>();
+            CBaseTx *pBaseTx        = stx.get();
 
             pop_heap(vTxPriority.begin(), vTxPriority.end(), comparer);
             vTxPriority.pop_back();
@@ -424,18 +389,20 @@ CBlockTemplate *CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txC
                 continue;
 
             // Skip free transactions if we're past the minimum block size:
-            if ((dFeePerKb < CTransaction::nMinRelayTxFee) && (nBlockSize + nTxSize >= nBlockMinSize))
+            if ((dFeePerKb < CBaseTx::nMinRelayTxFee) && (nBlockSize + nTxSize >= nBlockMinSize))
                 continue;
 
             CTxUndo txundo;
             CValidationState state;
             if (CONTRACT_TX == pBaseTx->nTxType)
-                LogPrint("vm", "CreateNewBlock: contract tx hash=%s\n", pBaseTx->GetHash().GetHex());
+                LogPrint("vm", "CreateNewBlock: contract tx hash=%s\n",
+                         pBaseTx->GetHash().GetHex());
 
             CAccountViewCache viewTemp(view, true);
             CScriptDBViewCache scriptCacheTemp(scriptCache, true);
             pBaseTx->nFuelRate = pblock->GetFuelRate();
-            if (!pBaseTx->ExecuteTx(nBlockTx + 1, viewTemp, state, txundo, pIndexPrev->nHeight + 1, txCache, scriptCacheTemp))
+            if (!pBaseTx->ExecuteTx(nBlockTx + 1, viewTemp, state, txundo, pIndexPrev->nHeight + 1,
+                                    txCache, scriptCacheTemp))
                 continue;
 
             // Run step limits
@@ -451,8 +418,8 @@ CBlockTemplate *CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txC
             nBlockTx++;
             pblock->vptx.push_back(stx);
             LogPrint("fuel", "miner total fuel:%d, tx fuel:%d runStep:%d fuelRate:%d txhash:%s\n",
-                nTotalFuel, pBaseTx->GetFuel(pblock->GetFuelRate()), pBaseTx->nRunStep,
-                pblock->GetFuelRate(), pBaseTx->GetHash().GetHex());
+                     nTotalFuel, pBaseTx->GetFuel(pblock->GetFuelRate()), pBaseTx->nRunStep,
+                     pblock->GetFuelRate(), pBaseTx->GetHash().GetHex());
         }
 
         nLastBlockTx                 = nBlockTx;
@@ -462,7 +429,7 @@ CBlockTemplate *CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txC
         g_miningBlockInfo.nTotalFees = nFees;
 
         assert(nFees >= nTotalFuel);
-        ((CRewardTransaction *)pblock->vptx[0].get())->rewardValue = nFees - nTotalFuel;
+        ((CRewardTx *)pblock->vptx[0].get())->rewardValue = nFees - nTotalFuel;
 
         // Fill in header
         pblock->SetHashPrevBlock(pIndexPrev->GetBlockHash());
@@ -474,7 +441,7 @@ CBlockTemplate *CreateNewBlock(CAccountViewCache &view, CTransactionDBCache &txC
         LogPrint("INFO", "CreateNewBlock(): total size %u\n", nBlockSize);
     }
 
-    return pblocktemplate.release();
+    return std::move(pblocktemplate);
 }
 
 bool CheckWork(CBlock *pblock, CWallet &wallet) {
@@ -641,8 +608,7 @@ void static CoinMiner(CWallet *pwallet, int targetHeight) {
             g_miningBlockInfo.SetNull();
 
             int64_t nLastTime = GetTimeMillis();
-            CBlockTemplate * newBlockTemplate = CreateNewBlock(accountView, txCache, scriptDB);
-            shared_ptr<CBlockTemplate> pblocktemplate(newBlockTemplate);
+            unique_ptr<CBlockTemplate> pblocktemplate(CreateNewBlock(accountView, txCache, scriptDB));
             if (!pblocktemplate.get())
                 throw runtime_error("Create new block failed");
 

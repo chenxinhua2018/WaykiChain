@@ -778,11 +778,11 @@ unsigned char TempArray[] = {
 //			READWRITE(money[i]);
 //	)
 //};
-//void Init(CAccountViewCache &view, CVmScript &vscript, vector<std::shared_ptr<CBaseTransaction> >& Tx,int64_t &iresult, int64_t &bresult,int64_t &betmoey) {
+//void Init(CAccountViewCache &view, CVmScript &vscript, vector<std::shared_ptr<CBaseTx> >& Tx,int64_t &iresult, int64_t &bresult,int64_t &betmoey) {
 //
 //	//std::vector<unsigned char> pScript = GetScriptBin("D:\\C51\\Debug\\Exe\\CPLUS.bin");
-//	vscript.Rom.insert(vscript.Rom.begin(), TempArray, TempArray+sizeof(TempArray));
-//	//vscript.Rom.insert(vscript.Rom.begin(), pScript.begin(), pScript.end());
+//	vscript.GetRom().insert(vscript.GetRom().begin(), TempArray, TempArray+sizeof(TempArray));
+//	//vscript.GetRom().insert(vscript.GetRom().begin(), pScript.begin(), pScript.end());
 //	vscript.rule.maxPay = 50;
 //	vscript.rule.maxReSv = 50;
 //	vscript.rule.vNextOutHeight = 90;
@@ -839,7 +839,7 @@ unsigned char TempArray[] = {
 //	contractScript.scriptId = scriptId.vRegID;
 //	contractScript.scriptContent = vpscript;
 //	CSecureTransaction *nTemp = static_cast<CSecureTransaction*>(Tx[0].get());
-//	nTemp->vContract.insert(nTemp->vContract.begin(),VmData.begin(),VmData.end());
+//	nTemp->arguments.insert(nTemp->arguments.begin(),VmData.begin(),VmData.end());
 //	nTemp->regScriptId = scriptId.vRegID;
 //
 //	for (auto& item : account) {
@@ -848,11 +848,11 @@ unsigned char TempArray[] = {
 //	unsigned char ch; memcpy(&ch,&a2,1);
 //	CAppealTransaction *nA2 = static_cast<CAppealTransaction*>(Tx[1].get());
 //	nA2->vPreAcountIndex.push_back(0x00);
-//	nA2->vContract.push_back(ch);
+//	nA2->arguments.push_back(ch);
 //	memcpy(&ch,&b2,1);
 //	CAppealTransaction *nB2 = static_cast<CAppealTransaction*>(Tx[2].get());
 //	nB2->vPreAcountIndex.push_back(0x01);
-//	nB2->vContract.push_back(ch);
+//	nB2->arguments.push_back(ch);
 //}
 //struct CTxBetRollScript {
 //	CVmScript vscript;
@@ -870,7 +870,7 @@ unsigned char TempArray[] = {
 //		tx = std::make_shared < CSecureTransaction > (CSecureTransaction());
 //		A2 = std::make_shared < CAppealTransaction > (CAppealTransaction());
 //		B2 = std::make_shared < CAppealTransaction > (CAppealTransaction());
-//		vector<std::shared_ptr<CBaseTransaction> > Tx;
+//		vector<std::shared_ptr<CBaseTx> > Tx;
 //		Tx.push_back(tx);
 //		Tx.push_back(A2);
 //		Tx.push_back(B2);
@@ -884,7 +884,7 @@ unsigned char TempArray[] = {
 //};
 //
 //bool SendSecuTx(CTxBetRollScript * betroll) {
-//	vector<std::shared_ptr<CBaseTransaction> > Tx;
+//	vector<std::shared_ptr<CBaseTx> > Tx;
 //	Tx.push_back(betroll->tx);
 //	CVmScriptRun mScript(betroll->view, Tx, betroll->vscript);
 //	bool flag = mScript.run(Tx, betroll->view);
@@ -912,15 +912,15 @@ unsigned char TempArray[] = {
 //			int b2 = random(100);
 //			unsigned char ch;
 //			memcpy(&ch, &b2, 1);
-//			if (ch != betroll->A2.get()->vContract[0]) {
-//				betroll->A2.get()->vContract.clear();
-//				betroll->A2.get()->vContract.push_back(ch);
+//			if (ch != betroll->A2.get()->arguments[0]) {
+//				betroll->A2.get()->arguments.clear();
+//				betroll->A2.get()->arguments.push_back(ch);
 //				break;
 //			}
 //		}
 //
 //	}
-//	vector<std::shared_ptr<CBaseTransaction> > Tx;
+//	vector<std::shared_ptr<CBaseTx> > Tx;
 //	Tx.push_back(betroll->tx);
 //	Tx.push_back(betroll->A2);
 //	CVmScriptRun mScript(betroll->view, Tx, betroll->vscript);
@@ -947,15 +947,15 @@ unsigned char TempArray[] = {
 //			int b2 = random(100);
 //			unsigned char ch;
 //			memcpy(&ch, &b2, 1);
-//			if (ch != betroll->B2.get()->vContract[0]) {
-//				betroll->B2.get()->vContract.clear();
-//				betroll->B2.get()->vContract.push_back(ch);
+//			if (ch != betroll->B2.get()->arguments[0]) {
+//				betroll->B2.get()->arguments.clear();
+//				betroll->B2.get()->arguments.push_back(ch);
 //				break;
 //			}
 //		}
 //
 //	}
-//	vector<std::shared_ptr<CBaseTransaction> > Tx;
+//	vector<std::shared_ptr<CBaseTx> > Tx;
 //	Tx.push_back(betroll->tx);
 //	Tx.push_back(betroll->B2);
 //	CVmScriptRun mScript(betroll->view, Tx, betroll->vscript);
@@ -978,7 +978,7 @@ unsigned char TempArray[] = {
 //}
 //
 //bool SendBThirdTx(CTxBetRollScript * betroll, bool bcheck) {
-//	vector<std::shared_ptr<CBaseTransaction> > Tx;
+//	vector<std::shared_ptr<CBaseTx> > Tx;
 //	Tx.push_back(betroll->tx);
 //	Tx.push_back(betroll->A2);
 //	Tx.push_back(betroll->B2);
@@ -1011,7 +1011,7 @@ unsigned char TempArray[] = {
 //}
 //
 //bool SendAThirdTx(CTxBetRollScript * betroll, bool bcheck) {
-//	vector<std::shared_ptr<CBaseTransaction> > Tx;
+//	vector<std::shared_ptr<CBaseTx> > Tx;
 //	Tx.push_back(betroll->tx);
 //	Tx.push_back(betroll->B2);
 //	Tx.push_back(betroll->A2);
@@ -1083,22 +1083,22 @@ unsigned char TempArray[] = {
 //	CDataStream VmData(SER_DISK, CLIENT_VERSION);
 //	VmData << vscript;
 //	string strOutpud = "script:" + HexStr(VmData.str())+"\r\n"
-//	+"first:" +HexStr(tx.get()->vContract)+"\r\n"
-//	+"A Second:" +HexStr(A2.get()->vContract)+"\r\n"
-//	+"B Third:"+HexStr(B2.get()->vContract)+"\r\n"
+//	+"first:" +HexStr(tx.get()->arguments)+"\r\n"
+//	+"A Second:" +HexStr(A2.get()->arguments)+"\r\n"
+//	+"B Third:"+HexStr(B2.get()->arguments)+"\r\n"
 //	+"or \r\n"
-//	+"B Second:"+HexStr(B2.get()->vContract)+"\r\n"
-//	+"A third:"+HexStr(A2.get()->vContract)+"\r\n";
+//	+"B Second:"+HexStr(B2.get()->arguments)+"\r\n"
+//	+"A third:"+HexStr(A2.get()->arguments)+"\r\n";
 //
 //	BOOST_MESSAGE(strOutpud);
 ////	cout << "script:" << HexStr(VmData.str()).c_str() << endl;
 ////
-////	cout<<"first:"<<HexStr(tx.get()->vContract).c_str()<<endl;
-////	cout<<"A Second:"<<HexStr(A2.get()->vContract).c_str()<<endl;
-////	cout<<"B Third:"<<HexStr(B2.get()->vContract).c_str()<<endl;
+////	cout<<"first:"<<HexStr(tx.get()->arguments).c_str()<<endl;
+////	cout<<"A Second:"<<HexStr(A2.get()->arguments).c_str()<<endl;
+////	cout<<"B Third:"<<HexStr(B2.get()->arguments).c_str()<<endl;
 ////	cout<<"or "<<endl;
-////	cout<<"B Second:"<<HexStr(B2.get()->vContract).c_str()<<endl;
-////	cout<<"A third:"<<HexStr(A2.get()->vContract).c_str()<<endl;
+////	cout<<"B Second:"<<HexStr(B2.get()->arguments).c_str()<<endl;
+////	cout<<"A third:"<<HexStr(A2.get()->arguments).c_str()<<endl;
 //}
 //
 //#else

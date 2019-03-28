@@ -8,6 +8,7 @@
 #ifndef VMSCRIPT_H_
 #define VMSCRIPT_H_
 
+#include "main.h"
 #include "serialize.h"
 using namespace std;
 
@@ -15,39 +16,39 @@ using namespace std;
  * @brief Load script binary code class
  */
 class CVmScript {
+private:
+	constexpr static char* kLuaScriptHeadLine = (char*)"mylib = require";
+
+    vector<unsigned char> rom;   //!< Binary code
+    vector<unsigned char> memo;  //!< Describe the binary code action
 
 public:
-	vector<unsigned char> Rom;      			//!< Binary code
-	vector<unsigned char> ScriptMemo;			//!< Describe the binary code action
+    CVmScript();
+    virtual ~CVmScript();
 
-public:
-	/**
-	 * @brief
-	 * @return
-	 */
-	bool IsValid()
-	{
-		///Binary code'size less 64k
-		if((Rom.size() > 64*1024) || (Rom.size() <= 0))
-			return false;
+	vector<unsigned char>& GetRom() { return rom; }
 
-		if (!memcmp(&Rom[0], "mylib = require", strlen("mylib = require"))) {
-			return true;	//lua脚本，直接返回
-		}
-		return false;
-	}
+	vector<unsigned char>& GetMemo() { return memo; }
 
-	bool IsCheckAccount(void){
-		return false;
-	}
-	CVmScript();
+    /**
+     * @brief
+     * @return
+     */
+    bool IsValid() {
+        if ((rom.size() > nContractScriptMaxSize) || (rom.size() <= 0))
+            return false;
 
-	 IMPLEMENT_SERIALIZE
-	(
-		READWRITE(Rom);
-		READWRITE(ScriptMemo);
-	)
-	virtual ~CVmScript();
+        if (!memcmp(&rom[0], kLuaScriptHeadLine, strlen(kLuaScriptHeadLine)))
+            return true;  // lua script shebang existing verified
+
+        return false;
+    }
+
+    bool IsCheckAccount(void) { return false; }
+
+    IMPLEMENT_SERIALIZE(
+        READWRITE(rom);
+        READWRITE(memo);)
 };
 
 #endif /* VMSCRIPT_H_ */

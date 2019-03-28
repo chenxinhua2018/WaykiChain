@@ -62,27 +62,32 @@ static void stackDump(lua_State *L){
     LogPrint("vm","\n");
 }
 #endif
+
 /*
  *  //3.往函数私有栈里存运算后的结果*/
-static inline int RetRstToLua(lua_State *L,const vector<unsigned char> &ResultData )
-{
-    int len = ResultData.size();
-    len = len > LUA_C_BUFFER_SIZE ? LUA_C_BUFFER_SIZE : len;
+static inline int RetRstToLua(lua_State *L, const vector<unsigned char> &resultData,
+                              bool needToTruncate = true) {
+    int len = resultData.size();
+    // truncate data by default
+    if (needToTruncate) {
+        len = len > LUA_C_BUFFER_SIZE ? LUA_C_BUFFER_SIZE : len;
+    }
 
-    if(len > 0) {   //检测栈空间是否够
-        if(lua_checkstack(L,len)){
-//          LogPrint("vm", "RetRstToLua value:%s\n",HexStr(ResultData).c_str());
-            for(int i = 0;i < len;i++){
-                lua_pushinteger(L, (lua_Integer) ResultData[i]);
+    if (len > 0) {
+        // check stack to avoid stack overflow
+        if (lua_checkstack(L, len)) {
+            // LogPrint("vm", "RetRstToLua value:%s\n", HexStr(resultData).c_str());
+            for (int i = 0; i < len; i++) {
+                lua_pushinteger(L, (lua_Integer)resultData[i]);
             }
-            return len ;
-        }else{
-            LogPrint("vm","%s\n", "RetRstToLua stack overflow");
+            return len;
+        } else {
+            LogPrint("vm", "%s\n", "RetRstToLua stack overflow");
         }
     } else {
-        LogPrint("vm","RetRstToLua err len = %d\n", len);
+        LogPrint("vm", "RetRstToLua err len = %d\n", len);
     }
-    return  0;
+    return 0;
 }
 /*
  *  //3.往函数私有栈里存布尔类型返回值*/
@@ -323,10 +328,10 @@ static bool GetDataTableLogPrint(lua_State *L, vector<std::shared_ptr < std::vec
     //取key
     int key = 0;
     double doubleValue = 0;
-    if(!(getNumberInTable(L,(char *)"key",doubleValue))){
+    if (!(getNumberInTable(L,(char *)"key",doubleValue))){
         LogPrint("vm", "key get fail\n");
         return false;
-    }else{
+    } else {
         key = (int)doubleValue;
     }
     vBuf.clear();
@@ -334,31 +339,27 @@ static bool GetDataTableLogPrint(lua_State *L, vector<std::shared_ptr < std::vec
     ret.insert(ret.end(),std::make_shared<vector<unsigned char>>(vBuf.begin(), vBuf.end()));
 
     //取value的长度
-    if(!(getNumberInTable(L,(char *)"length",doubleValue))){
+    if (!(getNumberInTable(L, (char *)"length", doubleValue))){
         LogPrint("vm", "length get fail\n");
         return false;
-    }else{
+    } else {
         len = (unsigned short)doubleValue;
     }
 
-    if(len > 0)
-    {
+    if (len > 0) {
         len = len > LUA_C_BUFFER_SIZE ? LUA_C_BUFFER_SIZE : len;
-        if(key)
-        {   //hex
-            if(!getArrayInTable(L,(char *)"value",len,vBuf))
-            {
+        if (key) {   //hex
+            if(!getArrayInTable(L,(char *)"value",len,vBuf)) {
                 LogPrint("vm","valueTable is not table\n");
                 return false;
-            }else{
+            } else {
                 ret.insert(ret.end(),std::make_shared<vector<unsigned char>>(vBuf.begin(), vBuf.end()));
             }
-        }else{ //string
-            if(!getStringLogPrint(L,(char *)"value",len,vBuf))
-            {
+        } else { //string
+            if(!getStringLogPrint(L,(char *)"value",len,vBuf)) {
                 LogPrint("vm","valueString is not string\n");
                 return false;
-            }else{
+            } else {
                 ret.insert(ret.end(),std::make_shared<vector<unsigned char>>(vBuf.begin(), vBuf.end()));
             }
         }
@@ -370,8 +371,7 @@ static bool GetDataTableLogPrint(lua_State *L, vector<std::shared_ptr < std::vec
 }
 static bool GetDataTableDes(lua_State *L, vector<std::shared_ptr < std::vector<unsigned char> > > &ret)
 {
-    if(!lua_istable(L,-1))
-    {
+    if(!lua_istable(L,-1)) {
         LogPrint("vm","is not table\n");
         return false;
     }
@@ -379,20 +379,19 @@ static bool GetDataTableDes(lua_State *L, vector<std::shared_ptr < std::vector<u
     vector<unsigned char> vBuf ;
 
     int dataLen = 0;
-    if(!(getNumberInTable(L,(char *)"dataLen",doubleValue))){
+    if (!(getNumberInTable(L,(char *)"dataLen",doubleValue))){
             LogPrint("vm","dataLen get fail\n");
             return false;
-        }else{
+        } else {
             dataLen = (unsigned int)doubleValue;
     }
 
-    if(dataLen <= 0) {
+    if (dataLen <= 0) {
         LogPrint("vm","dataLen <= 0\n");
         return false;
     }
 
-    if(!getArrayInTable(L,(char *)"data",dataLen,vBuf))
-    {
+    if (!getArrayInTable(L,(char *)"data",dataLen,vBuf)) {
         LogPrint("vm","data not table\n");
         return false;
     }else{
@@ -786,12 +785,12 @@ static int ExVerifySignatureFunc(lua_State *L) {
 }
 
 static int ExGetTxContractFunc(lua_State *L) {
-    vector<std::shared_ptr<vector<unsigned char> > > retdata;
+    vector<std::shared_ptr<vector<unsigned char>>> retdata;
     if (!GetArray(L, retdata) || retdata.size() != 1 || retdata.at(0).get()->size() != 32) {
         return RetFalse("ExGetTxContractFunc, para error");
     }
 
-    CVmRunEnv* pVmRunEnv = GetVmRunEnv(L);
+    CVmRunEnv *pVmRunEnv = GetVmRunEnv(L);
     if (NULL == pVmRunEnv) {
         return RetFalse("ExGetTxContractFunc, pVmRunEnv is NULL");
     }
@@ -803,12 +802,12 @@ static int ExGetTxContractFunc(lua_State *L) {
 
     LogPrint("vm", "ExGetTxContractFunc, hash: %s\n", hash.GetHex().c_str());
 
-    std::shared_ptr<CBaseTransaction> pBaseTx;
+    std::shared_ptr<CBaseTx> pBaseTx;
     int len = 0;
     if (GetTransaction(pBaseTx, hash, *pVmRunEnv->GetScriptDB(), false)) {
         if (pBaseTx->nTxType == CONTRACT_TX) {
-            CTransaction *tx = static_cast<CTransaction *>(pBaseTx.get());
-            len = RetRstToLua(L, tx->vContract);
+            CContractTx *tx = static_cast<CContractTx *>(pBaseTx.get());
+            len             = RetRstToLua(L, tx->arguments, false);
         } else {
             return RetFalse("ExGetTxContractFunc, tx type error");
         }
@@ -866,11 +865,15 @@ static int ExGetTxRegIDFunc(lua_State *L) {
 
     LogPrint("vm","ExGetTxRegIDFunc, hash: %s\n", hash.GetHex().c_str());
 
-    std::shared_ptr<CBaseTransaction> pBaseTx;
+    std::shared_ptr<CBaseTx> pBaseTx;
     int len = 0;
     if (GetTransaction(pBaseTx, hash, *pVmRunEnv->GetScriptDB(), false)) {
-        if (pBaseTx->nTxType == COMMON_TX || pBaseTx->nTxType == CONTRACT_TX) {
-            CTransaction *tx = static_cast<CTransaction*>(pBaseTx.get());
+        if (pBaseTx->nTxType == COMMON_TX) {
+            CCommonTx *tx = static_cast<CCommonTx*>(pBaseTx.get());
+            vector<unsigned char> item = boost::get<CRegID>(tx->srcRegId).GetVec6();
+            len = RetRstToLua(L, item);
+        } else if (pBaseTx->nTxType == CONTRACT_TX) {
+            CContractTx *tx = static_cast<CContractTx*>(pBaseTx.get());
             vector<unsigned char> item = boost::get<CRegID>(tx->srcRegId).GetVec6();
             len = RetRstToLua(L, item);
         } else {
@@ -1088,7 +1091,7 @@ static int ExGetBlockHashFunc(lua_State *L) {
         return RetFalse("pVmRunEnv is NULL");
     }
 
-    if (height <= 0 || height >= pVmRunEnv->GetComfirHeight()) //当前block 是不可以获取hash的
+    if (height <= 0 || height >= pVmRunEnv->GetComfirmHeight()) //当前block 是不可以获取hash的
     {
         return RetFalse("ExGetBlockHashFunc para err2");
     }
@@ -1115,7 +1118,7 @@ static int ExGetCurRunEnvHeightFunc(lua_State *L) {
         return RetFalse("pVmRunEnv is NULL");
     }
 
-    int height = pVmRunEnv->GetComfirHeight();
+    int height = pVmRunEnv->GetComfirmHeight();
 
     //检测栈空间是否够
    if(height > 0)
@@ -1217,8 +1220,8 @@ static int ExWriteDataDBFunc(lua_State *L)
     if (!scriptDB->SetContractData(scriptid, *retdata.at(0), *retdata.at(1), operlog)) {
         flag = false;
     } else {
-        shared_ptr<vector<CScriptDBOperLog> > m_dblog = pVmRunEnv->GetDbLog();
-        (*m_dblog.get()).push_back(operlog);
+        shared_ptr<vector<CScriptDBOperLog> > pScriptDBOperLog = pVmRunEnv->GetDbLog();
+        (*pScriptDBOperLog.get()).push_back(operlog);
     }
     return RetRstBooleanToLua(L,flag);
 }
@@ -1249,15 +1252,15 @@ static int ExDeleteDataDBFunc(lua_State *L) {
     CScriptDBOperLog operlog;
     int64_t nstep = 0;
     vector<unsigned char> vValue;
-    if(scriptDB->GetContractData(pVmRunEnv->GetComfirHeight(),scriptid, *retdata.at(0), vValue)){
+    if(scriptDB->GetContractData(pVmRunEnv->GetComfirmHeight(),scriptid, *retdata.at(0), vValue)){
         nstep = nstep - (int64_t)(vValue.size()+1);//删除数据奖励step
     }
     if (!scriptDB->EraseAppData(scriptid, *retdata.at(0), operlog)) {
         LogPrint("vm", "ExDeleteDataDBFunc error key:%s!\n",HexStr(*retdata.at(0)));
         flag = false;
     } else {
-        shared_ptr<vector<CScriptDBOperLog> > m_dblog = pVmRunEnv->GetDbLog();
-        m_dblog.get()->push_back(operlog);
+        shared_ptr<vector<CScriptDBOperLog> > pScriptDBOperLog = pVmRunEnv->GetDbLog();
+        pScriptDBOperLog.get()->push_back(operlog);
     }
     return RetRstBooleanToLua(L,flag);
 }
@@ -1284,7 +1287,7 @@ static int ExReadDataDBFunc(lua_State *L) {
     vector_unsigned_char vValue;
     CScriptDBViewCache* scriptDB = pVmRunEnv->GetScriptDB();
     int len = 0;
-    if (!scriptDB->GetContractData(pVmRunEnv->GetComfirHeight(), scriptRegId, *retdata.at(0), vValue)) {
+    if (!scriptDB->GetContractData(pVmRunEnv->GetComfirmHeight(), scriptRegId, *retdata.at(0), vValue)) {
         len = 0;
     } else {
         len = RetRstToLua(L,vValue);
@@ -1347,7 +1350,7 @@ static int ExGetDBValueFunc(lua_State *L) {
     }
 
     CScriptDBViewCache* scriptDB = pVmRunEnv->GetScriptDB();
-    flag = scriptDB->GetContractData(pVmRunEnv->GetComfirHeight(),scriptid,index,vScriptKey,vValue);
+    flag = scriptDB->GetContractData(pVmRunEnv->GetComfirmHeight(),scriptid,index,vScriptKey,vValue);
     int len = 0;
     if(flag){
         len = RetRstToLua(L,vScriptKey) + RetRstToLua(L,vValue);
@@ -1391,10 +1394,10 @@ static int ExModifyDataDBFunc(lua_State *L)
     CScriptDBViewCache* scriptDB = pVmRunEnv->GetScriptDB();
     CScriptDBOperLog operlog;
     vector_unsigned_char vTemp;
-    if (scriptDB->GetContractData(pVmRunEnv->GetComfirHeight(),scriptid, *retdata.at(0), vTemp)) {
+    if (scriptDB->GetContractData(pVmRunEnv->GetComfirmHeight(),scriptid, *retdata.at(0), vTemp)) {
         if (scriptDB->SetContractData(scriptid, *retdata.at(0), *retdata.at(1).get(), operlog)) {
-            shared_ptr<vector<CScriptDBOperLog> > m_dblog = pVmRunEnv->GetDbLog();
-            m_dblog.get()->push_back(operlog);
+            shared_ptr<vector<CScriptDBOperLog> > pScriptDBOperLog = pVmRunEnv->GetDbLog();
+            pScriptDBOperLog.get()->push_back(operlog);
             flag = true;
         }
     }
@@ -1450,7 +1453,7 @@ static bool GetDataTableWriteOutput(lua_State *L, vector<std::shared_ptr < std::
         LogPrint("vm", "outheight get fail\n");
         return false;
     } else {
-        temp.outHeight = (unsigned int) doubleValue;
+        temp.timeoutHeight = (unsigned int) doubleValue;
     }
 
     if (!getArrayInTable(L,(char *)"moneyTbl",sizeof(temp.money),vBuf)) {
@@ -1561,7 +1564,7 @@ static int ExGetContractDataFunc(lua_State *L)
     CScriptDBViewCache* scriptDB = pVmRunEnv->GetScriptDB();
     CRegID scriptid(*retdata.at(0));
     int len = 0;
-    if (!scriptDB->GetContractData(pVmRunEnv->GetComfirHeight(), scriptid, *retdata.at(1), vValue))
+    if (!scriptDB->GetContractData(pVmRunEnv->GetComfirmHeight(), scriptid, *retdata.at(1), vValue))
         len = 0;
     else  //3.往函数私有栈里存运算后的结果
         len = RetRstToLua(L,vValue);
@@ -1701,11 +1704,11 @@ static bool GetDataTableOutAppOperate(lua_State *L, vector<std::shared_ptr < std
         temp.opType = (unsigned char)doubleValue;
     }
 
-    if (!(getNumberInTable(L,(char *)"outHeight",doubleValue))) {
-        LogPrint("vm", "outheight get fail\n");
+    if (!(getNumberInTable(L, (char *)"outHeight", doubleValue))) {
+        LogPrint("vm", "outHeight get fail\n");
         return false;
     } else {
-        temp.outHeight = (unsigned int) doubleValue;
+        temp.timeoutHeight = (unsigned int) doubleValue;
     }
 
     if(!getArrayInTable(L,(char *)"moneyTbl",sizeof(temp.mMoney),vBuf))
@@ -1779,7 +1782,7 @@ static int ExGetUserAppAccFundWithTagFunc(lua_State *L)
     CAppCFund fund;
     int len = 0;
     if (pVmRunEnv->GetAppUserAccount(userfund.GetAppUserV(), sptrAcc)) {
-        if (!sptrAcc->GetAppCFund(fund,userfund.GetFundTagV(), userfund.outHeight))
+        if (!sptrAcc->GetAppCFund(fund,userfund.GetFundTagV(), userfund.timeoutHeight))
             return RetFalse("GetUserAppAccFundWithTag GetAppCFund fail");
 
         CDataStream tep(SER_DISK, CLIENT_VERSION);
@@ -1810,11 +1813,11 @@ static bool GetDataTableAssetOperate(lua_State *L, int nIndex, vector<std::share
     }
 
     if (!(getNumberInTable(L, (char *) "outHeight", doubleValue))) {
-        LogPrint("vm", "get outheight failed\n");
+        LogPrint("vm", "get timeoutHeight failed\n");
         return false;
     } else {
-        temp.outHeight = (unsigned int) doubleValue;
-        LogPrint("vm", "height = %d", temp.outHeight);
+        temp.timeoutHeight = (unsigned int) doubleValue;
+        LogPrint("vm", "height = %d", temp.timeoutHeight);
     }
 
     if (!getArrayInTable(L, (char *) "moneyTbl", sizeof(temp.mMoney), vBuf)) {
@@ -1847,7 +1850,7 @@ static bool GetDataTableAssetOperate(lua_State *L, int nIndex, vector<std::share
 }
 
 /**
- * 写应用操作输出到 pVmRunEnv->MapAppOperate[0]
+ * 写应用操作输出到 pVmRunEnv->mapAppFundOperate[0]
  * @param ipara
  * @param pVmEvn
  * @return
@@ -1872,7 +1875,7 @@ static int ExWriteOutAppOperateFunc(lua_State *L)
     int64_t step =-1;
     while (count--) {
         ss >> temp;
-        if(pVmRunEnv->GetComfirHeight() > nFreezeBlackAcctHeight && temp.mMoney < 0) //不能小于0,防止 上层传错金额小于20150904
+        if(pVmRunEnv->GetComfirmHeight() > nFreezeBlackAcctHeight && temp.mMoney < 0) //不能小于0,防止 上层传错金额小于20150904
             return RetFalse("ExWriteOutAppOperateFunc para err2");
 
         pVmRunEnv->InsertOutAPPOperte(temp.GetAppUserV(),temp);
@@ -1970,7 +1973,7 @@ static int ExTransferContractAsset(lua_State *L)
 
     if (nMoney > 0) {
         op.mMoney = nMoney;
-        op.outHeight = 0;
+        op.timeoutHeight = 0;
         op.opType = SUB_FREE_OP;
         op.appuserIDlen = sendkey.size();
         for (i = 0; i < op.appuserIDlen; i++)
@@ -1989,7 +1992,7 @@ static int ExTransferContractAsset(lua_State *L)
     vector<CAppCFund> vTemp = temp.get()->GetFrozenFunds();
     for (auto fund : vTemp) {
         op.mMoney = fund.GetValue();
-        op.outHeight = fund.GetHeight();
+        op.timeoutHeight = fund.GetHeight();
         op.opType = SUB_TAG_OP;
         op.appuserIDlen = sendkey.size();
         for (i = 0; i < op.appuserIDlen; i++) {
@@ -2077,7 +2080,7 @@ static int ExTransferSomeAsset(lua_State *L) {
     }
 
     op.mMoney = uTransferMoney;
-    op.outHeight = nHeight;
+    op.timeoutHeight = nHeight;
     op.appuserIDlen = sendkey.size();
 
     for (i = 0; i < op.appuserIDlen; i++) {
