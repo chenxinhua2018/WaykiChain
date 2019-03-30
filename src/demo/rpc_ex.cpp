@@ -496,3 +496,190 @@ Value exportblockdata(const Array& params, bool fHelp)
     Object obj;
     return obj;
 }
+
+
+static bool GetKeyId(string const &addr, CKeyID &KeyId) {
+    if (!CRegID::GetKeyID(addr, KeyId)) {
+        KeyId = CKeyID(addr);
+        if (KeyId.IsEmpty())
+            return false;
+    }
+    return true;
+}
+
+
+Value vmexecute(const Array& params, bool fHelp) {
+    if (fHelp || params.size() < 2) {
+        throw runtime_error(
+            "vmexecute \"scriptpath\"\n"
+            "\nvm execute.\n"
+            "\nArguments:\n"
+            "1.\"addr\": (string required) contract owner address from this wallet\n"
+            "2.\"scriptpath\": (string required), the file path of the app script\n"
+            "3.\"arguments\": (string, optional) contract method invoke content (Hex encode required)\n"
+            "\nResult vm execute detail\n"
+            "\nResult:\n"
+            "\n\"success\"\n"
+            "\nExamples:\n"
+            + HelpExampleCli("vmexecute","\"c5287324b89793fdf7fa97b6203dfd814b8358cfa31114078ea5981916d7a8ac\" \"/tmp/script.lua\"\n")
+            + "\nAs json rpc call\n"
+            + HelpExampleRpc("vmexecute", "\"c5287324b89793fdf7fa97b6203dfd814b8358cfa31114078ea5981916d7a8ac\" \"/tmp/script.lua\"\n"));
+    }
+    std::string filePath = params[1].get_str();
+
+//    CTxUndo txundo;
+ //   std::shared_ptr<CAccountViewCache> pAccountViewCache;
+ //   std::shared_ptr<CScriptDBViewCache> pScriptDBViewCache;
+//    mempool.ReScanMemPoolTx(pAccountViewTip, pScriptDBTip);
+
+
+    std::tuple<bool, string> syntax = CVmlua::CheckScriptSyntax(filePath.c_str());
+    bool bOK = std::get<0>(syntax);
+    if (!bOK)
+        throw JSONRPCError(RPC_INVALID_PARAMS, std::get<1>(syntax));
+
+    FILE* file = fopen(filePath.c_str(), "rb+");
+    if (!file)
+        throw JSONRPCError(RPC_INVALID_PARAMS, "Open script file (" + filePath + ") error");
+
+    long lSize;
+    fseek(file, 0, SEEK_END);
+    lSize = ftell(file);
+    rewind(file);
+
+    if (lSize <= 0 || lSize > nContractScriptMaxSize) { // contract script file size must be <= 64 KB)
+        fclose(file);
+        throw JSONRPCError(RPC_INVALID_PARAMS, (lSize == -1) ? "File size is unknown" : ((lSize == 0) ? "File is empty" : "File size exceeds 64 KB limit."));
+    }
+
+    // allocate memory to contain the whole file:
+    char *buffer = (char*) malloc(sizeof(char) * lSize);
+    if (buffer == NULL) {
+        fclose(file);
+        throw runtime_error("allocate memory failed");
+    }
+    if (fread(buffer, 1, lSize, file) != (size_t) lSize) {
+        free(buffer);  //及时释放
+        fclose(file);  //及时关闭
+        throw runtime_error("read script file error");
+    } else {
+        fclose(file); //使用完关闭文件
+    }
+
+    CVmScript vmScript;
+    vmScript.GetRom().insert(vmScript.GetRom().end(), buffer, buffer + lSize);
+
+    if (buffer)
+        free(buffer);
+
+    // if (params.size() > 4) {
+    //     string scriptDesc = params[4].get_str();
+    //     vmScript.GetMemo().insert(vmScript.GetMemo().end(), scriptDesc.begin(), scriptDesc.end());
+    // }
+
+    vector<unsigned char> vscript;
+    CDataStream ds(SER_DISK, CLIENT_VERSION);
+    ds << vmScript;
+    vscript.assign(ds.begin(), ds.end());
+
+    uint64_t fee = CBaseTx::nMinTxFee;
+
+    CTransactionDBCache txCacheTemp(*pTxCacheTip, true);
+    CAccountViewCache acctViewTemp(*pAccountViewTip, true);
+    CScriptDBViewCache scriptDBViewTemp(*pScriptDBTip, true);
+    CValidationState state;
+    CTxUndo txundo;
+
+    //get keyid
+    CKeyID srcKeyid;
+    if (!GetKeyId(params[0].get_str(), srcKeyid)) {
+        throw runtime_error("parse addr failed\n");
+    }
+    CUserID srcUserId   = srcKeyid;
+
+    //balance
+    CAccount account;
+
+    uint64_t balance = 0;
+    if (acctViewTemp.GetAccount(srcUserId, account)) {
+        balance = account.GetRawBalance();
+    }
+
+    if (!account.IsRegistered()) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "in registercontracttx Error: Account is not registered.");
+    }
+    if (!pwalletMain->HasKey(srcKeyid)) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "in registercontracttx Error: WALLET file is not correct.");
+    }
+    if (balance < fee) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "in registercontracttx Error: Account balance is insufficient.");
+    }
+
+    CRegID srcRegId;
+    acctViewTemp.GetRegId(srcKeyid, srcRegId);
+
+    EnsureWalletIsUnlocked();
+    int newHeight = chainActive.Tip()->nHeight + 1;
+    assert(pwalletMain != NULL);
+    {
+        CRegisterContractTx tx;
+
+        tx.regAcctId = srcRegId;
+        tx.script    = vscript;
+        tx.llFees    = fee;
+        tx.nRunStep  = vscript.size();
+        tx.nValidHeight = newHeight;
+
+        if (!pwalletMain->Sign(srcKeyid, tx.SignatureHash(), tx.signature)) {
+            throw JSONRPCError(RPC_WALLET_ERROR, "registercontracttx Error: Sign failed.");
+        }
+
+        if (!tx.ExecuteTx(1, acctViewTemp, state, txundo, newHeight,
+                                        txCacheTemp, scriptDBViewTemp)) {
+            throw JSONRPCError(RPC_TRANSACTION_ERROR, "Registercontracttx Error: executetx failed.");
+        }
+    }
+
+    CRegID appId(newHeight, 1); //App RegId
+    uint64_t amount = 0;
+
+    vector<unsigned char> arguments;
+    if (params.size() > 2) {
+        arguments = ParseHex(params[3].get_str());
+    }
+
+    fee = 1000000;
+    std::shared_ptr<CContractTx> contractTx_ptr = std::make_shared<CContractTx>();
+    CContractTx &contractTx = *contractTx_ptr;
+
+    {
+        //balance
+        CAccount secureAcc;
+
+        if (!scriptDBViewTemp.HaveScript(appId)) {
+            throw runtime_error(tinyformat::format("in callcontracttx : appId %s not exist\n", appId.ToString()));
+        }
+        contractTx.nTxType   = CONTRACT_TX;
+        contractTx.srcRegId  = srcRegId;
+        contractTx.desUserId = appId;
+        contractTx.llValues  = amount;
+        contractTx.llFees    = fee;
+        contractTx.arguments = arguments;
+        contractTx.nValidHeight = newHeight;
+
+        vector<unsigned char> signature;
+        if (!pwalletMain->Sign(srcKeyid, contractTx.SignatureHash(), contractTx.signature)) {
+            throw JSONRPCError(RPC_WALLET_ERROR, "callcontracttx Error: Sign failed.");
+        }
+
+        if (!contractTx.ExecuteTx(2, acctViewTemp, state, txundo, chainActive.Tip()->nHeight + 1,
+                                        txCacheTemp, scriptDBViewTemp)) {
+            throw JSONRPCError(RPC_TRANSACTION_ERROR, "callcontracttx Error: executetx failed.");
+        }
+    }
+
+    Object obj;
+
+    obj.push_back(Pair("runsteps", contractTx.nRunStep));
+    return obj;    
+}
