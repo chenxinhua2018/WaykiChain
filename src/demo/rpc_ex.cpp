@@ -407,11 +407,7 @@ Value exportblockdata(const Array& params, bool fHelp)
                 txRow["destId"] = GetUidString(commonTx.desUserId);
                 txRow["fees"] = commonTx.llFees;
                 txRow["values"] = commonTx.llValues;
-                if (tx.nTxType == COMMON_TX) {
-                    txRow["description"] = HexStr(commonTx.memo);
-                } else {
-                    txRow["contract"] = HexStr(commonTx.memo);
-                }
+                txRow["memo"] = HexStr(commonTx.memo);
                 txRow["signature"] = HexStr(commonTx.signature);
             } else if (tx.nTxType == CONTRACT_TX) {
                 CContractTx &contractTx = (CContractTx&)tx;
@@ -454,7 +450,7 @@ Value exportblockdata(const Array& params, bool fHelp)
 
                 txRow["scriptSize"] = vmScript.GetRom().size();
                 txRow["scriptFile"] = scriptFilePath;
-                txRow["description"] = HexStr(vmScript.GetMemo());
+                txRow["memo"] = HexStr(vmScript.GetMemo());
 
                 txRow["fees"] = regContractTx.llFees;
 
