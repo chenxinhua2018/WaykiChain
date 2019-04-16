@@ -161,13 +161,15 @@ protected:
 public:
     static uint64_t nMinTxFee;
     static int64_t nMinRelayTxFee;
+    static uint64_t nDustAmountThreshold;
     static const int CURRENT_VERSION = nTxVersion1;
 
     unsigned char nTxType;
     int nVersion;
     int nValidHeight;
-    uint64_t nRunStep;  //only in memory
-    int nFuelRate;      //only in memory
+    uint64_t nRunStep;  // only in memory
+    int nFuelRate;      // only in memory
+    uint256 sigHash;    // only in memory
 
 public:
     CBaseTx(const CBaseTx &other) { *this = other; }
@@ -178,7 +180,7 @@ public:
     virtual uint256 GetHash() const = 0;
     virtual uint64_t GetFee() const = 0;
     virtual double GetPriority() const = 0;
-    virtual uint256 SignatureHash() const = 0;
+    virtual uint256 SignatureHash(bool recalculate = false) const = 0;
     virtual std::shared_ptr<CBaseTx> GetNewInstance() = 0;
     virtual string ToString(CAccountViewCache &view) const = 0;
     virtual Object ToJson(const CAccountViewCache &AccountView) const = 0;
@@ -200,8 +202,8 @@ protected:
 
 class CRegisterAccountTx : public CBaseTx {
 public:
-    mutable CUserID userId;   //pubkey
-    mutable CUserID minerId;  //Miner pubkey
+    mutable CUserID userId;   // pubkey
+    mutable CUserID minerId;  // miner pubkey
     uint64_t llFees;
     vector<unsigned char> signature;
 
@@ -242,12 +244,19 @@ public:
 
     uint64_t GetValue() const { return 0; }
     uint64_t GetFee() const { return llFees; }
-    uint256 SignatureHash() const {
-        CHashWriter ss(SER_GETHASH, 0);
-        CID userPubkey(userId);
-        CID minerPubkey(minerId);
-        ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << userPubkey << minerPubkey << VARINT(llFees);
-        return ss.GetHash();
+    uint256 SignatureHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            CID userPubkey(userId);
+            CID minerPubkey(minerId);
+            ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << userPubkey << minerPubkey
+               << VARINT(llFees);
+            // Truly need to write the sigHash.
+            uint256 *hash = const_cast<uint256 *>(&sigHash);
+            *hash         = ss.GetHash();
+        }
+
+        return sigHash;
     }
     uint256 GetHash() const { return SignatureHash(); }
     double GetPriority() const { return llFees / GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION); }
@@ -264,10 +273,10 @@ public:
 
 class CCommonTx : public CBaseTx {
 public:
-    mutable CUserID srcRegId;   //src regid
-    mutable CUserID desUserId;  //user regid or user key id or app regid
-    uint64_t llFees;            //fees paid to miner
-    uint64_t llValues;          //transfer amount
+    mutable CUserID srcUserId;  // regid or pubkey
+    mutable CUserID desUserId;  // regid or keyid
+    uint64_t llFees;            // fees paid to miner
+    uint64_t llValues;          // transfer amount
     vector_unsigned_char memo;
     vector_unsigned_char signature;
 
@@ -275,8 +284,8 @@ public:
     CCommonTx() {
         nTxType      = COMMON_TX;
         llFees       = 0;
-        nValidHeight = 0;
         llValues     = 0;
+        nValidHeight = 0;
         memo.clear();
         signature.clear();
     }
@@ -286,34 +295,34 @@ public:
         *this = *(CCommonTx *)pBaseTx;
     }
 
-    CCommonTx(const CUserID &srcRegIdIn, CUserID desUserIdIn, uint64_t fee, uint64_t value,
-                       int height, vector_unsigned_char &descriptionIn) {
-        if (srcRegIdIn.type() == typeid(CRegID))
-            assert(!boost::get<CRegID>(srcRegIdIn).IsEmpty());
+    CCommonTx(const CUserID &srcUserIdIn, CUserID desUserIdIn, uint64_t fee, uint64_t value,
+              int height, vector_unsigned_char &descriptionIn) {
+        if (srcUserIdIn.type() == typeid(CRegID))
+            assert(!boost::get<CRegID>(srcUserIdIn).IsEmpty());
 
         if (desUserIdIn.type() == typeid(CRegID))
             assert(!boost::get<CRegID>(desUserIdIn).IsEmpty());
 
         nTxType      = COMMON_TX;
-        srcRegId     = srcRegIdIn;
+        srcUserId    = srcUserIdIn;
         desUserId    = desUserIdIn;
-        memo  = descriptionIn;
+        memo         = descriptionIn;
         nValidHeight = height;
         llFees       = fee;
         llValues     = value;
         signature.clear();
     }
 
-    CCommonTx(const CUserID &srcRegIdIn, CUserID desUserIdIn, uint64_t fee, uint64_t value,
-                       int height) {
-        if (srcRegIdIn.type() == typeid(CRegID))
-            assert(!boost::get<CRegID>(srcRegIdIn).IsEmpty());
+    CCommonTx(const CUserID &srcUserIdIn, CUserID desUserIdIn, uint64_t fee, uint64_t value,
+              int height) {
+        if (srcUserIdIn.type() == typeid(CRegID))
+            assert(!boost::get<CRegID>(srcUserIdIn).IsEmpty());
 
         if (desUserIdIn.type() == typeid(CRegID))
             assert(!boost::get<CRegID>(desUserIdIn).IsEmpty());
 
         nTxType      = COMMON_TX;
-        srcRegId     = srcRegIdIn;
+        srcUserId    = srcUserIdIn;
         desUserId    = desUserIdIn;
         nValidHeight = height;
         llFees       = fee;
@@ -328,7 +337,7 @@ public:
         READWRITE(VARINT(this->nVersion));
         nVersion = this->nVersion;
         READWRITE(VARINT(nValidHeight));
-        CID srcId(srcRegId);
+        CID srcId(srcUserId);
         READWRITE(srcId);
         CID desId(desUserId);
         READWRITE(desId);
@@ -337,18 +346,25 @@ public:
         READWRITE(memo);
         READWRITE(signature);
         if (fRead) {
-            srcRegId  = srcId.GetUserId();
+            srcUserId  = srcId.GetUserId();
             desUserId = desId.GetUserId();
         })
 
-    uint256 SignatureHash() const {
-        CHashWriter ss(SER_GETHASH, 0);
-        CID srcId(srcRegId);
-        CID desId(desUserId);
-        ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << srcId << desId
-           << VARINT(llFees) << VARINT(llValues) << memo;
-        return ss.GetHash();
+    uint256 SignatureHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            CID srcId(srcUserId);
+            CID desId(desUserId);
+            ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << srcId << desId
+               << VARINT(llFees) << VARINT(llValues) << memo;
+            // Truly need to write the sigHash.
+            uint256 *hash = const_cast<uint256 *>(&sigHash);
+            *hash         = ss.GetHash();
+        }
+
+        return sigHash;
     }
+
     uint64_t GetValue() const { return llValues; }
     uint256 GetHash() const { return SignatureHash(); }
     uint64_t GetFee() const { return llFees; }
@@ -368,7 +384,7 @@ public:
 class CContractTx : public CBaseTx {
 public:
     mutable CUserID srcRegId;   // src regid
-    mutable CUserID desUserId;  // user regid or user key id or app regid
+    mutable CUserID desUserId;  // keyid or app regid
     uint64_t llFees;            // fees paid to miner
     uint64_t llValues;          // transfer amount
     vector_unsigned_char arguments;
@@ -443,15 +459,20 @@ public:
             desUserId = desId.GetUserId();
         })
 
-    uint256 SignatureHash() const {
-        CHashWriter ss(SER_GETHASH, 0);
-        CID srcId(srcRegId);
-        CID desId(desUserId);
-        ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << srcId << desId
-           << VARINT(llFees) << VARINT(llValues) << arguments;
-        return ss.GetHash();
-    }
+    uint256 SignatureHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            CID srcId(srcRegId);
+            CID desId(desUserId);
+            ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << srcId << desId
+               << VARINT(llFees) << VARINT(llValues) << arguments;
+            // Truly need to write the sigHash.
+            uint256 *hash = const_cast<uint256 *>(&sigHash);
+            *hash         = ss.GetHash();
+        }
 
+        return sigHash;
+    }
     uint64_t GetValue() const { return llValues; }
     uint256 GetHash() const { return SignatureHash(); }
     uint64_t GetFee() const { return llFees; }
@@ -507,12 +528,19 @@ public:
         READWRITE(VARINT(rewardValue));
         READWRITE(VARINT(nHeight));)
 
-    uint256 SignatureHash() const {
-        CHashWriter ss(SER_GETHASH, 0);
-        CID accId(account);
-        ss << VARINT(nVersion) << nTxType << accId << VARINT(rewardValue) << VARINT(nHeight);
-        return ss.GetHash();
+    uint256 SignatureHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            CID accId(account);
+            ss << VARINT(nVersion) << nTxType << accId << VARINT(rewardValue) << VARINT(nHeight);
+            // Truly need to write the sigHash.
+            uint256 *hash = const_cast<uint256 *>(&sigHash);
+            *hash         = ss.GetHash();
+        }
+
+        return sigHash;
     }
+
     uint64_t GetValue() const { return rewardValue; }
     uint256 GetHash() const { return SignatureHash(); }
     std::shared_ptr<CBaseTx> GetNewInstance() { return std::make_shared<CRewardTx>(this); }
@@ -559,13 +587,21 @@ public:
         READWRITE(VARINT(llFees));
         READWRITE(signature);)
 
-    uint64_t GetValue() const { return 0; }
-    uint256 SignatureHash() const {
-        CHashWriter ss(SER_GETHASH, 0);
-        CID regAccId(regAcctId);
-        ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << regAccId << script << VARINT(llFees);
-        return ss.GetHash();
+    uint256 SignatureHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            CID regAccId(regAcctId);
+            ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << regAccId << script
+               << VARINT(llFees);
+            // Truly need to write the sigHash.
+            uint256 *hash = const_cast<uint256 *>(&sigHash);
+            *hash         = ss.GetHash();
+        }
+
+        return sigHash;
     }
+
+    uint64_t GetValue() const { return 0; }
     uint256 GetHash() const { return SignatureHash(); }
     std::shared_ptr<CBaseTx> GetNewInstance() { return std::make_shared<CRegisterContractTx>(this); }
     uint64_t GetFee() const { return llFees; }
@@ -639,12 +675,20 @@ public:
             userId = ID.GetUserId();
         })
 
-    uint256 SignatureHash() const {
-        CHashWriter ss(SER_GETHASH, 0);
-        CID accId(userId);
-        ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << accId << operVoteFunds << VARINT(llFees);
-        return ss.GetHash();
+    uint256 SignatureHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            CID accId(userId);
+            ss << VARINT(nVersion) << nTxType << VARINT(nValidHeight) << accId << operVoteFunds
+               << VARINT(llFees);
+            // Truly need to write the sigHash.
+            uint256 *hash = const_cast<uint256 *>(&sigHash);
+            *hash         = ss.GetHash();
+        }
+
+        return sigHash;
     }
+
     uint256 GetHash() const { return SignatureHash(); }
     uint64_t GetFee() const { return llFees; }
     double GetPriority() const { return llFees / GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION); }
@@ -660,8 +704,9 @@ public:
 
 class CVoteFund {
 public:
-    CPubKey pubKey;  //!< delegates public key
-    uint64_t value;  //!< amount of vote
+    CPubKey pubKey;   //!< delegates public key
+    uint64_t value;   //!< amount of vote
+    uint256 sigHash;  // only in memory
 
 public:
     CVoteFund() {
@@ -689,11 +734,19 @@ public:
         return *this;
     }
     ~CVoteFund() {}
-    uint256 GetHash() const {
-        CHashWriter ss(SER_GETHASH, 0);
-        ss << VARINT(value) << pubKey;
-        return ss.GetHash();
+
+    uint256 GetHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            ss << VARINT(value) << pubKey;
+            // Truly need to write the sigHash.
+            uint256 *hash = const_cast<uint256 *>(&sigHash);
+            *hash         = ss.GetHash();
+        }
+
+        return sigHash;
     }
+
     friend bool operator<(const CVoteFund &fa, const CVoteFund &fb) {
         if (fa.value <= fb.value)
             return true;
@@ -809,14 +862,15 @@ public:
 
 class CAccount {
 public:
-    CRegID regID;
+    CRegID regID;                  //!< regID of the account
     CKeyID keyID;                  //!< keyID of the account
     CPubKey pubKey;                //!< public key of the account
-    CPubKey minerPubKey;             //!< public key of the account for miner
+    CPubKey minerPubKey;           //!< public key of the account for miner
     uint64_t llValues;             //!< total money
     uint64_t nVoteHeight;          //!< account vote block height
     vector<CVoteFund> vVoteFunds;  //!< account delegate votes order by vote value
     uint64_t llVotes;              //!< votes received
+    uint256 sigHash;               // only in memory
 
 public:
     /**
@@ -834,7 +888,7 @@ public:
 public:
     CAccount(CKeyID &keyId, CPubKey &pubKey) : keyID(keyId), pubKey(pubKey) {
         llValues    = 0;
-        minerPubKey   = CPubKey();
+        minerPubKey = CPubKey();
         nVoteHeight = 0;
         vVoteFunds.clear();
         regID.Clean();
@@ -842,7 +896,7 @@ public:
     }
     CAccount() : keyID(uint160()), llValues(0) {
         pubKey      = CPubKey();
-        minerPubKey   = CPubKey();
+        minerPubKey = CPubKey();
         nVoteHeight = 0;
         vVoteFunds.clear();
         regID.Clean();
@@ -852,7 +906,7 @@ public:
         this->regID       = other.regID;
         this->keyID       = other.keyID;
         this->pubKey      = other.pubKey;
-        this->minerPubKey   = other.minerPubKey;
+        this->minerPubKey = other.minerPubKey;
         this->llValues    = other.llValues;
         this->nVoteHeight = other.nVoteHeight;
         this->vVoteFunds  = other.vVoteFunds;
@@ -864,7 +918,7 @@ public:
         this->regID       = other.regID;
         this->keyID       = other.keyID;
         this->pubKey      = other.pubKey;
-        this->minerPubKey   = other.minerPubKey;
+        this->minerPubKey = other.minerPubKey;
         this->llValues    = other.llValues;
         this->nVoteHeight = other.nVoteHeight;
         this->vVoteFunds  = other.vVoteFunds;
@@ -888,12 +942,20 @@ public:
     string ToString(bool isAddress = false) const;
     Object ToJsonObj(bool isAddress = false) const;
     bool IsEmptyValue() const { return !(llValues > 0); }
-    uint256 GetHash() {
-        CHashWriter ss(SER_GETHASH, 0);
-        ss << regID << keyID << pubKey << minerPubKey << VARINT(llValues)
-           << VARINT(nVoteHeight) << vVoteFunds << llVotes;
-        return ss.GetHash();
+
+    uint256 GetHash(bool recalculate = false) {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            ss << regID << keyID << pubKey << minerPubKey << VARINT(llValues) << VARINT(nVoteHeight)
+               << vVoteFunds << llVotes;
+            // Truly need to write the sigHash.
+            uint256 *hash = const_cast<uint256 *>(&sigHash);
+            *hash         = ss.GetHash();
+        }
+
+        return sigHash;
     }
+
     bool UpDateAccountPos(int nCurHeight);
 
     IMPLEMENT_SERIALIZE(

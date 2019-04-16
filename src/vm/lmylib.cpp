@@ -30,7 +30,7 @@
 
 #define LUA_C_BUFFER_SIZE  500  //传递值，最大字节防止栈溢出
 
-lua_CFunction g_defaultRequireFunc = NULL; // default require function
+lua_CFunction g_defaultRequireFunc = NULL;  // default require function
 
 #if 0
 static void setfield(lua_State *L,char * key,double value){
@@ -872,7 +872,7 @@ static int ExGetTxRegIDFunc(lua_State *L) {
     if (GetTransaction(pBaseTx, hash, *pVmRunEnv->GetScriptDB(), false)) {
         if (pBaseTx->nTxType == COMMON_TX) {
             CCommonTx *tx = static_cast<CCommonTx*>(pBaseTx.get());
-            vector<unsigned char> item = boost::get<CRegID>(tx->srcRegId).GetVec6();
+            vector<unsigned char> item = boost::get<CRegID>(tx->srcUserId).GetVec6();
             len = RetRstToLua(L, item);
         } else if (pBaseTx->nTxType == CONTRACT_TX) {
             CContractTx *tx = static_cast<CContractTx*>(pBaseTx.get());
@@ -1440,7 +1440,7 @@ static bool GetDataTableWriteOutput(lua_State *L, vector<std::shared_ptr < std::
         LogPrint("vm","accountidTbl not table\n");
         return false;
     } else {
-       memcpy(temp.accountid,&vBuf[0],len);
+       memcpy(temp.accountId,&vBuf[0],len);
     }
 
     if (!(getNumberInTable(L,(char *)"operatorType",doubleValue))) {
@@ -2129,17 +2129,41 @@ static int ExGetBlockTimestamp(lua_State *L)
     return 0;
 }
 
-static int ExLinmitedRequire (lua_State *L) {
+
+static int ExLimitedRequire(lua_State *L) {
     const char *name = luaL_checkstring(L, 1);
     if (strcmp(name, "mylib") != 0) {
-        luaL_error(L, "Only supports to require \"mylib\"");
+        return luaL_error(L, "Only supports to require \"mylib\"");
     }
     if (g_defaultRequireFunc == NULL) {
-        luaL_error(L, "The default require function is NULL");
+        return luaL_error(L, "The default require function is NULL");
     }
-    g_defaultRequireFunc(L);
+    return g_defaultRequireFunc(L);
 }
 
+static int ExLuaPrint(lua_State *L) {
+    int n = lua_gettop(L); /* number of arguments */
+    int i;
+    std::string str = "";
+    lua_getglobal(L, "tostring");
+    for (i = 1; i <= n; i++) {
+        const char *s;
+        size_t l;
+        lua_pushvalue(L, -1); /* function to be called */
+        lua_pushvalue(L, i);  /* value to print */
+        lua_call(L, 1, 1);
+        s = lua_tolstring(L, -1, &l); /* get result */
+        if (s == NULL) return luaL_error(L, "'tostring' must return a string to 'print'");
+        if (i == 1) {
+            str = std::string(s, l);
+        } else {
+            str += "\t" + std::string(s, l);
+        }
+        lua_pop(L, 1); /* pop result */
+    }
+    LogPrint("vm", "%s\n", str);
+    return 0;
+}
 
 static const luaL_Reg mylib[] = {
     {"Int64Mul",                    ExInt64MulFunc},
@@ -2194,10 +2218,10 @@ static const luaL_Reg mylib[] = {
 
 // disable or replace all io-related functions
 static const luaL_Reg baseLibsEx[] = {
-    {"print",                       ExLogPrintFunc},    // replace default print function
+    {"print",                       ExLuaPrint},        // replace default print function
     {"dofile",                      NULL},              // disable dofile
     {"loadfile",                    NULL},              // disable loadfile
-    {"require",                     ExLinmitedRequire}, // repalace default require function
+    {"require",                     ExLimitedRequire},  // repalace default require function
 
     {NULL, NULL}
 };
@@ -2229,6 +2253,6 @@ bool InitLuaLibsEx(lua_State *L) {
 
     luaL_setfuncs(L, baseLibsEx, 0);
 
-    lua_pop(L, 1); // pop the global table
+    lua_pop(L, 1);  // pop the global table
     return true;
 }

@@ -123,6 +123,11 @@ bool ShutdownRequested() {
     return fRequestShutdown;
 }
 
+void Interrupt()
+{
+    InterruptRPCServer();
+}
+
 void Shutdown() {
     LogPrint("INFO", "Shutdown : In progress...\n");
     static CCriticalSection cs_Shutdown;
@@ -131,10 +136,12 @@ void Shutdown() {
 
     RenameThread("Coin-shutoff");
     mempool.AddTransactionsUpdated(1);
-    StopRPCThreads();
+    StopRPCServer();
     ShutdownRPCMining();
 
     GenerateCoinBlock(false, NULL, 0);
+    StartCommonGeneration(0, 0);
+    StartContractGeneration("", 0, 0);
 
     StopNode();
     UnregisterNodeSignals(GetNodeSignals());
@@ -927,7 +934,7 @@ bool AppInit(boost::thread_group &threadGroup) {
     CBlock block;
     while (blockIndex && nCacheHeight-- > 0) {
         if (!ReadBlockFromDisk(block, blockIndex))
-            return InitError("Failed to read block");
+            return InitError("Failed to read block from disk");
 
         if (!pTxCacheTip->AddBlockToCache(block))
             return InitError("Failed to add block to txcache");
@@ -935,7 +942,7 @@ bool AppInit(boost::thread_group &threadGroup) {
         blockIndex = blockIndex->pprev;
         ++nCount;
     }
-    LogPrint("INFO", "Add the latest %d blocks to txcache (%dms)\n", nCount, GetTimeMillis() - nStart);
+    LogPrint("INFO", "Added the latest %d blocks to txcache (%dms)\n", nCount, GetTimeMillis() - nStart);
 
     // check current chain according to checkpoint
     CBlockIndex *pcheckpoint = Checkpoints::GetLastCheckpoint(mapBlockIndex);
@@ -979,7 +986,9 @@ bool AppInit(boost::thread_group &threadGroup) {
     // InitRPCMining is needed here so getwork/getblocktemplate in the GUI debug console works properly.
     InitRPCMining();
     if (SysCfg().IsServer()) {
-        StartRPCThreads();
+        if (!StartRPCServer()) {
+            return InitError(_("Failed to start rpc server. "));
+        }
     }
 
     // Generate coins in the background

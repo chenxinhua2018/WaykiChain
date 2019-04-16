@@ -22,7 +22,7 @@ bool CAccountView::GetAccount(const vector<unsigned char> &accountId, CAccount &
 bool CAccountView::EraseKeyId(const vector<unsigned char> &accountId) { return false; }
 bool CAccountView::SaveAccountInfo(const vector<unsigned char> &accountId, const CKeyID &keyId, const CAccount &account) { return false; }
 
-Object CAccountView::ToJsonObj(char Prefix) { return Object(); }
+Object CAccountView::ToJsonObj(char prefix) { return Object(); }
 
 std::tuple<uint64_t, uint64_t> CAccountViewBacked::TraverseAccount() { return pBase->TraverseAccount(); }
 
@@ -84,7 +84,7 @@ bool CAccountViewCache::GetAccount(const CKeyID &keyId, CAccount &account) {
     }
     if (pBase->GetAccount(keyId, account)) {
         cacheAccounts.insert(make_pair(keyId, account));
-        //cacheAccounts[keyId] = account;
+        // cacheAccounts[keyId] = account;
         return true;
     }
     return false;
@@ -250,15 +250,12 @@ bool CAccountViewCache::GetAccount(const CUserID &userId, CAccount &account) {
     bool ret = false;
     if (userId.type() == typeid(CRegID)) {
         ret = GetAccount(boost::get<CRegID>(userId).GetVec6(), account);
-        //		if(ret) assert(boost::get<CRegID>(userId) == account.regID);
     } else if (userId.type() == typeid(CKeyID)) {
         ret = GetAccount(boost::get<CKeyID>(userId), account);
-        //		if(ret) assert(boost::get<CKeyID>(userId) == account.keyID);
     } else if (userId.type() == typeid(CPubKey)) {
         ret = GetAccount(boost::get<CPubKey>(userId).GetKeyID(), account);
-        //		if(ret) assert((boost::get<CPubKey>(userId)).GetKeyID() == account.keyID);
     } else if (userId.type() == typeid(CNullID)) {
-        return ERRORMSG("GetAccount input userid can't be CNullID type");
+        return ERRORMSG("GetAccount input userId can't be CNullID type");
     }
     return ret;
 }
@@ -309,7 +306,6 @@ bool CAccountViewCache::GetRegId(const CKeyID &keyId, CRegID &regId) {
         regId = acct.regID;
         return true;
     } else {
-        //throw runtime_error(tinyformat::format("GetRegId :account id %s not exist\n", keyId.ToAddress()));
         return false;
     }
 }
@@ -426,7 +422,7 @@ bool CScriptDBView::GetData(const vector<unsigned char> &vKey, vector<unsigned c
 bool CScriptDBView::SetData(const vector<unsigned char> &vKey, const vector<unsigned char> &vValue) { return false; }
 bool CScriptDBView::BatchWrite(const map<vector<unsigned char>, vector<unsigned char> > &mapContractDb) { return false; }
 bool CScriptDBView::EraseKey(const vector<unsigned char> &vKey) { return false; }
-bool CScriptDBView::HasData(const vector<unsigned char> &vKey) { return false; }
+bool CScriptDBView::HaveData(const vector<unsigned char> &vKey) { return false; }
 bool CScriptDBView::GetScript(const int &nIndex, vector<unsigned char> &vScriptId, vector<unsigned char> &vValue) { return false; }
 bool CScriptDBView::GetContractData(const int nCurBlockHeight, const vector<unsigned char> &vScriptId, const int &nIndex,
                                     vector<unsigned char> &vScriptKey, vector<unsigned char> &vScriptData) {
@@ -440,14 +436,14 @@ bool CScriptDBView::GetTxHashByAddress(const CKeyID &keyId, int nHeight, map<vec
 bool CScriptDBView::SetTxHashByAddress(const CKeyID &keyId, int nHeight, int nIndex, const string &strTxHash, CScriptDBOperLog &operLog) { return false; }
 bool CScriptDBView::GetAllScriptAcc(const CRegID &scriptId, map<vector<unsigned char>, vector<unsigned char> > &mapAcc) { return false; }
 
-Object CScriptDBView::ToJsonObj(string Prefix) { return Object(); }
+Object CScriptDBView::ToJsonObj(string prefix) { return Object(); }
 
 CScriptDBViewBacked::CScriptDBViewBacked(CScriptDBView &dataBaseView) { pBase = &dataBaseView; }
 bool CScriptDBViewBacked::GetData(const vector<unsigned char> &vKey, vector<unsigned char> &vValue) { return pBase->GetData(vKey, vValue); }
 bool CScriptDBViewBacked::SetData(const vector<unsigned char> &vKey, const vector<unsigned char> &vValue) { return pBase->SetData(vKey, vValue); }
 bool CScriptDBViewBacked::BatchWrite(const map<vector<unsigned char>, vector<unsigned char> > &mapContractDb) { return pBase->BatchWrite(mapContractDb); }
 bool CScriptDBViewBacked::EraseKey(const vector<unsigned char> &vKey) { return pBase->EraseKey(vKey); }
-bool CScriptDBViewBacked::HasData(const vector<unsigned char> &vKey) { return pBase->HasData(vKey); }
+bool CScriptDBViewBacked::HaveData(const vector<unsigned char> &vKey) { return pBase->HaveData(vKey); }
 bool CScriptDBViewBacked::GetScript(const int &nIndex, vector<unsigned char> &vScriptId, vector<unsigned char> &vValue) { return pBase->GetScript(nIndex, vScriptId, vValue); }
 bool CScriptDBViewBacked::GetContractData(const int nCurBlockHeight, const vector<unsigned char> &vScriptId,
                                           const int &nIndex, vector<unsigned char> &vScriptKey, vector<unsigned char> &vScriptData) {
@@ -550,14 +546,14 @@ bool CScriptDBViewCache::EraseKey(const vector<unsigned char> &vKey) {
     return true;
 }
 
-bool CScriptDBViewCache::HasData(const vector<unsigned char> &vKey) {
+bool CScriptDBViewCache::HaveData(const vector<unsigned char> &vKey) {
     if (mapContractDb.count(vKey) > 0) {
         if (!mapContractDb[vKey].empty())
             return true;
         else
             return false;
     }
-    return pBase->HasData(vKey);
+    return pBase->HaveData(vKey);
 }
 
 bool CScriptDBViewCache::GetScript(const int nIndex, vector<unsigned char> &vScriptId, vector<unsigned char> &vValue) {
@@ -1227,7 +1223,7 @@ bool CScriptDBViewCache::SetContractData(const vector<unsigned char> &vScriptId,
     vKey.push_back('_');
     vKey.insert(vKey.end(), vScriptKey.begin(), vScriptKey.end());
     vector<unsigned char> vNewValue(vScriptData.begin(), vScriptData.end());
-    if (!HasData(vKey)) {
+    if (!HaveData(vKey)) {
         int nCount(0);
         GetContractItemCount(vScriptId, nCount);
         ++nCount;
@@ -1246,7 +1242,7 @@ bool CScriptDBViewCache::SetContractData(const vector<unsigned char> &vScriptId,
 bool CScriptDBViewCache::HaveScript(const vector<unsigned char> &vScriptId) {
     vector<unsigned char> scriptKey = {'d', 'e', 'f'};
     scriptKey.insert(scriptKey.end(), vScriptId.begin(), vScriptId.end());
-    return HasData(scriptKey);
+    return HaveData(scriptKey);
 }
 
 bool CScriptDBViewCache::GetScriptCount(int &nCount) {
@@ -1328,7 +1324,7 @@ bool CScriptDBViewCache::EraseAppData(const vector<unsigned char> &vScriptId,
     vKey.push_back('_');
     vKey.insert(vKey.end(), vScriptKey.begin(), vScriptKey.end());
 
-    if (HasData(vKey)) {
+    if (HaveData(vKey)) {
         int nCount(0);
         if (!GetContractItemCount(vScriptId, nCount))
             return false;
@@ -1360,12 +1356,12 @@ bool CScriptDBViewCache::EraseAppData(const vector<unsigned char> &vKey) {
     return EraseAppData(vScriptId, vScriptKey, operLog);
 }
 
-bool CScriptDBViewCache::HasScriptData(const vector<unsigned char> &vScriptId, const vector<unsigned char> &vScriptKey) {
+bool CScriptDBViewCache::HaveScriptData(const vector<unsigned char> &vScriptId, const vector<unsigned char> &vScriptKey) {
     vector<unsigned char> scriptKey = {'d', 'a', 't', 'a'};
     scriptKey.insert(scriptKey.end(), vScriptId.begin(), vScriptId.end());
     scriptKey.push_back('_');
     scriptKey.insert(scriptKey.end(), vScriptKey.begin(), vScriptKey.end());
-    return HasData(scriptKey);
+    return HaveData(scriptKey);
 }
 
 bool CScriptDBViewCache::GetScript(const int nIndex, CRegID &scriptId, vector<unsigned char> &vValue) {
@@ -1395,8 +1391,8 @@ bool CScriptDBViewCache::GetContractItemCount(const CRegID &scriptId, int &nCoun
 bool CScriptDBViewCache::EraseAppData(const CRegID &scriptId, const vector<unsigned char> &vScriptKey, CScriptDBOperLog &operLog) {
     return EraseAppData(scriptId.GetVec6(), vScriptKey, operLog);
 }
-bool CScriptDBViewCache::HasScriptData(const CRegID &scriptId, const vector<unsigned char> &vScriptKey) {
-    return HasScriptData(scriptId.GetVec6(), vScriptKey);
+bool CScriptDBViewCache::HaveScriptData(const CRegID &scriptId, const vector<unsigned char> &vScriptKey) {
+    return HaveScriptData(scriptId.GetVec6(), vScriptKey);
 }
 bool CScriptDBViewCache::GetContractData(const int nCurBlockHeight, const CRegID &scriptId, const vector<unsigned char> &vScriptKey,
                                          vector<unsigned char> &vScriptData) {
@@ -1525,18 +1521,18 @@ bool CScriptDBViewCache::EraseDelegateData(const vector<unsigned char> &vKey) {
     return true;
 }
 
-uint256 CTransactionDBView::HasTx(const uint256 &txHash) { return uint256(); }
+bool CTransactionDBView::HaveTx(const uint256 &txHash) { return false; }
 bool CTransactionDBView::IsContainBlock(const CBlock &block) { return false; }
 bool CTransactionDBView::AddBlockToCache(const CBlock &block) { return false; }
 bool CTransactionDBView::DeleteBlockFromCache(const CBlock &block) { return false; }
-bool CTransactionDBView::BatchWrite(const map<uint256, set<uint256> > &mapTxHashByBlockHash) { return false; }
+bool CTransactionDBView::BatchWrite(const map<uint256, UnorderedHashSet> &mapTxHashByBlockHash) { return false; }
 
 CTransactionDBViewBacked::CTransactionDBViewBacked(CTransactionDBView &transactionView) {
     pBase = &transactionView;
 }
 
-uint256 CTransactionDBViewBacked::HasTx(const uint256 &txHash) {
-    return pBase->HasTx(txHash);
+bool CTransactionDBViewBacked::HaveTx(const uint256 &txHash) {
+    return pBase->HaveTx(txHash);
 }
 
 bool CTransactionDBViewBacked::IsContainBlock(const CBlock &block) {
@@ -1551,7 +1547,7 @@ bool CTransactionDBViewBacked::DeleteBlockFromCache(const CBlock &block) {
     return pBase->DeleteBlockFromCache(block);
 }
 
-bool CTransactionDBViewBacked::BatchWrite(const map<uint256, set<uint256> > &mapTxHashByBlockHashIn) {
+bool CTransactionDBViewBacked::BatchWrite(const map<uint256, UnorderedHashSet> &mapTxHashByBlockHashIn) {
     return pBase->BatchWrite(mapTxHashByBlockHashIn);
 }
 
@@ -1563,7 +1559,7 @@ bool CTransactionDBCache::IsContainBlock(const CBlock &block) {
 }
 
 bool CTransactionDBCache::AddBlockToCache(const CBlock &block) {
-    set<uint256> vTxHash;
+    UnorderedHashSet vTxHash;
     vTxHash.clear();
     for (auto &ptx : block.vptx) {
         vTxHash.insert(ptx->GetHash());
@@ -1574,31 +1570,28 @@ bool CTransactionDBCache::AddBlockToCache(const CBlock &block) {
 
 bool CTransactionDBCache::DeleteBlockFromCache(const CBlock &block) {
     if (IsContainBlock(block)) {
-        set<uint256> vTxHash;
+        UnorderedHashSet vTxHash;
         vTxHash.clear();
         mapTxHashByBlockHash[block.GetHash()] = vTxHash;
     }
     return true;
 }
 
-uint256 CTransactionDBCache::HasTx(const uint256 &txHash) {
+bool CTransactionDBCache::HaveTx(const uint256 &txHash) {
     for (auto &item : mapTxHashByBlockHash) {
         if (item.second.find(txHash) != item.second.end()) {
-            return item.first;
+            return true;
         }
     }
-    uint256 blockHash = pBase->HasTx(txHash);
-    if (IsInMap(mapTxHashByBlockHash, blockHash)) {
-        return blockHash;
-    }
-    return uint256();
+
+    return false;
 }
 
-map<uint256, set<uint256> > CTransactionDBCache::GetTxHashCache() {
+map<uint256, UnorderedHashSet> CTransactionDBCache::GetTxHashCache() {
     return mapTxHashByBlockHash;
 }
 
-bool CTransactionDBCache::BatchWrite(const map<uint256, set<uint256> > &mapTxHashByBlockHashIn) {
+bool CTransactionDBCache::BatchWrite(const map<uint256, UnorderedHashSet> &mapTxHashByBlockHashIn) {
     for (auto &item : mapTxHashByBlockHashIn) {
         mapTxHashByBlockHash[item.first] = item.second;
     }
@@ -1606,7 +1599,7 @@ bool CTransactionDBCache::BatchWrite(const map<uint256, set<uint256> > &mapTxHas
 }
 
 bool CTransactionDBCache::Flush() {
-    map<uint256, set<uint256> >::iterator iter = mapTxHashByBlockHash.begin();
+    map<uint256, UnorderedHashSet>::iterator iter = mapTxHashByBlockHash.begin();
     for (; iter != mapTxHashByBlockHash.end();) {
         if (iter->second.empty()) {
             mapTxHashByBlockHash.erase(iter++);
@@ -1618,7 +1611,7 @@ bool CTransactionDBCache::Flush() {
     return true;
 }
 
-void CTransactionDBCache::AddTxHashCache(const uint256 &blockHash, const set<uint256> &vTxHash) {
+void CTransactionDBCache::AddTxHashCache(const uint256 &blockHash, const UnorderedHashSet &vTxHash) {
     mapTxHashByBlockHash[blockHash] = vTxHash;
 }
 
@@ -1635,7 +1628,7 @@ int CTransactionDBCache::GetSize() {
     return iCount;
 }
 
-bool CTransactionDBCache::IsInMap(const map<uint256, set<uint256> > &mMap, const uint256 &hash) const {
+bool CTransactionDBCache::IsInMap(const map<uint256, UnorderedHashSet> &mMap, const uint256 &hash) const {
     if (hash == uint256())
         return false;
     auto te = mMap.find(hash);
@@ -1677,11 +1670,11 @@ void CTransactionDBCache::SetBaseData(CTransactionDBView *pNewBase) {
     pBase = pNewBase;
 }
 
-const map<uint256, set<uint256> > &CTransactionDBCache::GetCacheMap() {
+const map<uint256, UnorderedHashSet> &CTransactionDBCache::GetCacheMap() {
     return mapTxHashByBlockHash;
 }
 
-void CTransactionDBCache::SetCacheMap(const map<uint256, set<uint256> > &mapCache) {
+void CTransactionDBCache::SetCacheMap(const map<uint256, UnorderedHashSet> &mapCache) {
     mapTxHashByBlockHash = mapCache;
 }
 

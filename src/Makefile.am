@@ -44,6 +44,7 @@ coin_CORE_H = \
   core.h \
   database.h \
   crypter.h \
+  crypto/sha256.h \
   hash.h \
   init.h \
   key.h \
@@ -58,11 +59,13 @@ coin_CORE_H = \
   noui.h \
   protocol.h \
   random.h   \
+  rpc/httpserver.h \
   rpc/rpcclient.h \
   rpc/rpcprotocol.h \
   rpc/rpcserver.h \
   support/cleanse.h \
   serialize.h \
+  sigcache.h \
   sync.h \
   threadsafety.h \
   tinyformat.h \
@@ -175,12 +178,14 @@ version.o: obj/build.h
 liblua53_a_SOURCES = \
   $(VMLUA_C)
 
+libcoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
 libcoin_server_a_SOURCES = \
   tx.cpp \
   addrman.cpp \
   alert.cpp \
   bloom.cpp \
   configuration.cpp \
+  crypto/sha256.cpp \
   database.cpp \
   init.cpp \
   leveldbwrapper.cpp \
@@ -188,12 +193,14 @@ libcoin_server_a_SOURCES = \
   miner.cpp \
   net.cpp \
   noui.cpp \
+  rpc/httpserver.cpp \
   rpc/rpcblockchain.cpp \
   rpc/rpcmining.cpp \
   rpc/rpcmisc.cpp \
   rpc/rpcnet.cpp \
   rpc/rpcrawtransaction.cpp \
   rpc/rpcserver.cpp \
+  sigcache.cpp \
   txdb.cpp \
   txmempool.cpp \
   cuiserver.cpp	\
@@ -228,6 +235,7 @@ libcoin_common_a_SOURCES = \
   random.cpp  \
   rpc/rpcprotocol.cpp \
   support/cleanse.cpp \
+  support/events.cpp \
   sync.cpp \
   syncdata.cpp \
   syncdatadb.cpp \
@@ -273,7 +281,7 @@ endif
 liblua53_a_CFLAGS = -fPIC
 
 AM_CPPFLAGS += $(BDB_CPPFLAGS)
-coind_LDADD += $(BOOST_LIBS) $(BDB_LIBS)
+coind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) 
 
 # NOTE: This dependency is not strictly necessary, but without it make may try to build both in parallel, which breaks the LevelDB build system in a race
 $(LIBLEVELDB): $(LIBMEMENV)

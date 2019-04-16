@@ -65,7 +65,7 @@ Value getbalance(const Array& params, bool fHelp)
             if (!GetKeyId(addr, keyid)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid  address");
             }
-            if (pwalletMain->HasKey(keyid)) {
+            if (pwalletMain->HaveKey(keyid)) {
                 CAccount account;
                 CAccountViewCache accView(*pAccountViewTip, true);
                 if (accView.GetAccount(CUserID(keyid), account)) {
@@ -94,9 +94,9 @@ Value getbalance(const Array& params, bool fHelp)
                             if (COMMON_TX == item.second->nTxType) {
                                 CCommonTx *pTx = (CCommonTx *)item.second.get();
                                 CKeyID srcKeyId, desKeyId;
-                                pAccountViewTip->GetKeyId(pTx->srcRegId, srcKeyId);
+                                pAccountViewTip->GetKeyId(pTx->srcUserId, srcKeyId);
                                 pAccountViewTip->GetKeyId(pTx->desUserId, desKeyId);
-                                if (!pwalletMain->HasKey(srcKeyId) && pwalletMain->HasKey(desKeyId)) {
+                                if (!pwalletMain->HaveKey(srcKeyId) && pwalletMain->HaveKey(desKeyId)) {
                                     nValue = pTx->llValues;
                                 }
                             }
@@ -116,7 +116,7 @@ Value getbalance(const Array& params, bool fHelp)
             if (!GetKeyId(addr, keyid)) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid  address");
             }
-            if (pwalletMain->HasKey(keyid)) {
+            if (pwalletMain->HaveKey(keyid)) {
                 if (0 != nConf) {
                     CBlockIndex *pBlockIndex = chainActive.Tip();
                     int64_t nValue(0);
@@ -172,7 +172,6 @@ Value getinfo(const Array& params, bool fHelp)
             "  \"proxy\": \"host:port\",     (string) the proxy used by the server\n"
             "  \"nettype\": \"xxxxx\",       (string) the net type\n"
             "  \"genblock\": xxxxx,          (numeric) generate blocks\n"
-            "  \"chainwork\": \"xxxxx\",     (string) the chainwork of the tip block in chainActive\n"
             "  \"unlocktime\": xxxxx,        (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
             "  \"paytxfee\": x.xxxx,         (numeric) the transaction fee set in btc/kb\n"
             "  \"relayfee\": x.xxxx,         (numeric) minimum relay fee for non-free transactions in btc/kb\n"
@@ -211,7 +210,6 @@ Value getinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("proxy",             (proxy.first.IsValid() ? proxy.first.ToStringIPPort() : string())));
     obj.push_back(Pair("nettype",           netType[SysCfg().NetworkID()]));
     obj.push_back(Pair("genblock",          SysCfg().GetArg("-genblock", 0)));
-    obj.push_back(Pair("chainwork",         chainActive.Tip()->nChainWork.GetHex()));
 
     if (pwalletMain && pwalletMain->IsEncrypted())
         obj.push_back(Pair("unlockeduntil", nWalletUnlockTime));
@@ -226,7 +224,7 @@ Value getinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("tipblockhash",      chainActive.Tip()->GetBlockHash().ToString()));
     obj.push_back(Pair("syncblockheight",   nSyncTipHeight));
     obj.push_back(Pair("tipblockheight",    chainActive.Height()));
-    obj.push_back(Pair("connections",       vNodes.size()));
+    obj.push_back(Pair("connections",       (int)vNodes.size()));
     obj.push_back(Pair("errors",            GetWarnings("statusbar")));
 
     return obj;

@@ -16,6 +16,7 @@
 #include "core.h"
 #include "database.h"
 #include "net.h"
+#include "sigcache.h"
 #include "sync.h"
 #include "txmempool.h"
 #include "uint256.h"
@@ -37,9 +38,9 @@ class CContractScript;
 /** the total blocks of burn fee need */
 static const unsigned int DEFAULT_BURN_BLOCK_SIZE = 50;
 /** The maximum allowed size for a serialized block, in bytes (network rule) */
-static const unsigned int MAX_BLOCK_SIZE = 1000000;
+static const unsigned int MAX_BLOCK_SIZE = 4000000;
 /** Default for -blockmaxsize and -blockminsize, which control the range of sizes the mining code will create **/
-static const unsigned int DEFAULT_BLOCK_MAX_SIZE = 750000;
+static const unsigned int DEFAULT_BLOCK_MAX_SIZE = 3750000;
 static const unsigned int DEFAULT_BLOCK_MIN_SIZE = 1024 * 10;
 /** Default for -blockprioritysize, maximum space for zero/low-fee transactions **/
 static const unsigned int DEFAULT_BLOCK_PRIORITY_SIZE = 50000;
@@ -104,7 +105,10 @@ static const int kFreezeBlackAcctHeight               = 99854;
 static const uint64_t kMinDiskSpace              = 52428800;  // Minimum disk space required
 static const int kContractScriptMaxSize          = 65536;     // 64 KB max for contract script size
 static const int kContractArgumentMaxSize        = 4096;      // 4 KB max for contract argument size
+static const int kCommonTxMemoMaxSize            = 100;       // 100 bytes max for memo size
+static const int kContractMemoMaxSize            = 100;       // 100 bytes max for memo size
 static const int kMostRecentBlockNumberThreshold = 1000;      // most recent block number threshold
+static const int kRegIdMaturePeriodByBlock       = 100;       // RegId's mature period measured by blocks
 static const string kContractScriptPathPrefix    = "/tmp/lua/";
 
 extern CCriticalSection cs_main;
@@ -114,7 +118,6 @@ extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockSize;
 extern const string strMessageMagic;
 
-class CCoinsDB;
 class CBlockTreeDB;
 struct CDiskBlockPos;
 class CTxUndo;
@@ -134,7 +137,7 @@ void UnregisterWallet(CWalletInterface *pwalletIn);
 /** Unregister all wallets from core */
 void UnregisterAllWallets();
 /** Push an updated transaction to all registered wallets */
-void SyncWithWallets(const uint256 &hash, CBaseTx *pBaseTx, const CBlock *pblock = NULL);
+void SyncTransaction(const uint256 &hash, CBaseTx *pBaseTx, const CBlock *pblock = NULL);
 /** Erase Tx from wallets **/
 void EraseTransaction(const uint256 &hash);
 /** Register with a network node to receive its signals */
@@ -1077,64 +1080,16 @@ class CMerkleBlock {
 };
 
 class CWalletInterface {
-   protected:
+protected:
     virtual void SyncTransaction(const uint256 &hash, CBaseTx *pBaseTx, const CBlock *pblock) = 0;
-    virtual void EraseFromWallet(const uint256 &hash)                                                  = 0;
-    virtual void SetBestChain(const CBlockLocator &locator)                                            = 0;
-    virtual void UpdatedTransaction(const uint256 &hash)                                               = 0;
-    //    virtual void Inventory(const uint256 &hash) =0;
-    virtual void ResendWalletTransactions() = 0;
+    virtual void EraseTransaction(const uint256 &hash)                                        = 0;
+    virtual void SetBestChain(const CBlockLocator &locator)                                   = 0;
+    virtual void UpdatedTransaction(const uint256 &hash)                                      = 0;
+    // virtual void Inventory(const uint256 &hash)                                               = 0;
+    virtual void ResendWalletTransactions()                                                   = 0;
     friend void ::RegisterWallet(CWalletInterface *);
     friend void ::UnregisterWallet(CWalletInterface *);
     friend void ::UnregisterAllWallets();
-};
-
-class CSignatureCache {
-   private:
-    // sigdata_type is (signature hash, signature, public key):
-    typedef std::tuple<uint256, std::vector<unsigned char>, CPubKey> sigdata_type;
-    std::set<sigdata_type> setValid;
-    boost::shared_mutex cs_sigcache;
-
-   public:
-    bool
-    Get(const uint256 &hash, const std::vector<unsigned char> &vchSig, const CPubKey &pubKey) {
-        boost::shared_lock<boost::shared_mutex> lock(cs_sigcache);
-
-        sigdata_type k(hash, vchSig, pubKey);
-        std::set<sigdata_type>::iterator mi = setValid.find(k);
-        if (mi != setValid.end())
-            return true;
-        return false;
-    }
-
-    void Set(const uint256 &hash, const std::vector<unsigned char> &vchSig, const CPubKey &pubKey) {
-        // DoS prevention: limit cache size to less than 10MB
-        // (~200 bytes per cache entry times 50,000 entries)
-        // Since there are a maximum of 20,000 signature operations per block
-        // 50,000 is a reasonable default.
-        int64_t nMaxCacheSize = SysCfg().GetArg("-maxsigcachesize", 50000);
-        if (nMaxCacheSize <= 0) return;
-
-        boost::unique_lock<boost::shared_mutex> lock(cs_sigcache);
-
-        while (static_cast<int64_t>(setValid.size()) > nMaxCacheSize) {
-            // Evict a random entry. Random because that helps
-            // foil would-be DoS attackers who might try to pre-generate
-            // and re-use a set of valid signatures just-slightly-greater
-            // than our cache size.
-            uint256 randomHash = GetRandHash();
-            std::vector<unsigned char> unused;
-            std::set<sigdata_type>::iterator it =
-                setValid.lower_bound(sigdata_type(randomHash, unused, unused));
-            if (it == setValid.end())
-                it = setValid.begin();
-            setValid.erase(*it);
-        }
-
-        sigdata_type k(hash, vchSig, pubKey);
-        setValid.insert(k);
-    }
 };
 
 extern CSignatureCache signatureCache;

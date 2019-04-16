@@ -57,7 +57,7 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,str
             CKeyID cKeyid;
             ssKey >> cKeyid;
             ssValue >> keyCombi;
-            if (keyCombi.HasMainKey()) {
+            if (keyCombi.HaveMainKey()) {
                 if (cKeyid != keyCombi.GetCKeyID()) {
                     strErr = "Error reading wallet database: keystore corrupt";
                     return false;
@@ -223,18 +223,16 @@ bool CWalletDB::Recover(CDBEnv& dbenv, string filename, bool fOnlyKeys)
 
     int result = dbenv.dbenv->dbrename(NULL, filename.c_str(), NULL,
                                       newFilename.c_str(), DB_AUTO_COMMIT);
-    if (result == 0)
+    if (result == 0) {
         LogPrint("INFO","Renamed %s to %s\n", filename, newFilename);
-    else
-    {
+    } else {
         LogPrint("INFO","Failed to rename %s to %s\n", filename, newFilename);
         return false;
     }
 
     vector<CDBEnv::KeyValPair> salvagedData;
     bool allOK = dbenv.Salvage(newFilename, true, salvagedData);
-    if (salvagedData.empty())
-    {
+    if (salvagedData.empty()) {
         LogPrint("INFO","Salvage(aggressive) found no records in %s.\n", newFilename);
         return false;
     }
@@ -329,13 +327,13 @@ bool CWalletDB::WriteCryptedKey(const CPubKey& pubkey, const std::vector<unsigne
 }
 
 
-bool CWalletDB::WriteUnComFirmedTx(const uint256& hash, const std::shared_ptr<CBaseTx>& tx) {
+bool CWalletDB::WriteUnconfirmedTx(const uint256& hash, const std::shared_ptr<CBaseTx>& tx) {
     nWalletDBUpdated++;
     return Write(make_pair(string("tx"), hash),tx);
 }
 
 
-bool CWalletDB::EraseUnComFirmedTx(const uint256& hash) {
+bool CWalletDB::EraseUnconfirmedTx(const uint256& hash) {
     nWalletDBUpdated++;
     return Erase(make_pair(string("tx"), hash));
 }

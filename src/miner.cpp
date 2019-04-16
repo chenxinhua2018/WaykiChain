@@ -89,7 +89,7 @@ void GetPriorityTx(vector<TxPriority> &vecPriority, int nFuelRate) {
     static unsigned int nTxSize = 0;
     for (map<uint256, CTxMemPoolEntry>::iterator mi = mempool.mapTx.begin(); mi != mempool.mapTx.end(); ++mi) {
         CBaseTx *pBaseTx = mi->second.GetTx().get();
-        if (!pBaseTx->IsCoinBase() && uint256() == pTxCacheTip->HasTx(pBaseTx->GetHash())) {
+        if (!pBaseTx->IsCoinBase() && !pTxCacheTip->HaveTx(pBaseTx->GetHash())) {
             nTxSize   = ::GetSerializeSize(*pBaseTx, SER_NETWORK, PROTOCOL_VERSION);
             dFeePerKb = double(pBaseTx->GetFee() - pBaseTx->GetFuel(nFuelRate)) / (double(nTxSize) / 1000.0);
             dPriority = 1000.0 / double(nTxSize);
@@ -283,7 +283,7 @@ bool VerifyPosTx(const CBlock *pBlock, CAccountViewCache &accView, CTransactionD
             if (!CheckSignScript(blockHash, blockSignature, account.minerPubKey))
                 return ERRORMSG("Verify miner publickey signature error");
     } else {
-        return ERRORMSG("AccountView has no accountid");
+        return ERRORMSG("AccountView has no accountId");
     }
 
     if (prtx->nVersion != nTxVersion1)
@@ -295,7 +295,7 @@ bool VerifyPosTx(const CBlock *pBlock, CAccountViewCache &accView, CTransactionD
         uint64_t nTotalRunStep(0);
         for (unsigned int i = 1; i < pBlock->vptx.size(); i++) {
             shared_ptr<CBaseTx> pBaseTx = pBlock->vptx[i];
-            if (uint256() != txCache.HasTx(pBaseTx->GetHash()))
+            if (txCache.HaveTx(pBaseTx->GetHash()))
                 return ERRORMSG("VerifyPosTx duplicate tx hash:%s", pBaseTx->GetHash().GetHex());
 
             CTxUndo txundo;
@@ -394,10 +394,6 @@ unique_ptr<CBlockTemplate> CreateNewBlock(CAccountViewCache &view, CTransactionD
 
             CTxUndo txundo;
             CValidationState state;
-            if (CONTRACT_TX == pBaseTx->nTxType)
-                LogPrint("vm", "CreateNewBlock: contract tx hash=%s\n",
-                         pBaseTx->GetHash().GetHex());
-
             CAccountViewCache viewTemp(view, true);
             CScriptDBViewCache scriptCacheTemp(scriptCache, true);
             pBaseTx->nFuelRate = pblock->GetFuelRate();
@@ -559,7 +555,7 @@ void static CoinMiner(CWallet *pwallet, int targetHeight) {
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
     RenameThread("Coin-miner");
 
-    auto HasMinerKey = [&]() {
+    auto HaveMinerKey = [&]() {
         LOCK2(cs_main, pwalletMain->cs_wallet);
 
         set<CKeyID> setMineKey;
@@ -568,7 +564,7 @@ void static CoinMiner(CWallet *pwallet, int targetHeight) {
         return !setMineKey.empty();
     };
 
-    if (!HasMinerKey()) {
+    if (!HaveMinerKey()) {
         LogPrint("INFO", "CoinMiner terminated.\n");
         ERRORMSG("No key for mining");
         return;
@@ -588,11 +584,9 @@ void static CoinMiner(CWallet *pwallet, int targetHeight) {
             if (SysCfg().NetworkID() != REGTEST_NET) {
                 // Busy-wait for the network to come online so we don't waste time mining
                 // on an obsolete chain. In regtest mode we expect to fly solo.
-                while ( vNodes.empty() ||
-                        (chainActive.Tip() &&
-                        chainActive.Tip()->nHeight > 1 &&
-                        GetAdjustedTime() - chainActive.Tip()->nTime > 60 * 60 &&
-                        !SysCfg().GetBoolArg("-genblockforce", false)) ) {
+                while (vNodes.empty() || (chainActive.Tip() && chainActive.Tip()->nHeight > 1 &&
+                                          GetAdjustedTime() - chainActive.Tip()->nTime > 60 * 60 &&
+                                          !SysCfg().GetBoolArg("-genblockforce", false))) {
                     MilliSleep(1000);
                 }
             }
