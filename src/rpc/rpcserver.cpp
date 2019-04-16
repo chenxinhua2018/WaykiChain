@@ -18,12 +18,14 @@
 #include "json/json_spirit_writer_template.h"
 #include "rpc/httpserver.h"
 
-///////////////////////////////
-// ex
-#include "demo/rpc_ex.h"
+
 
 using namespace std;
 using namespace json_spirit;
+
+///////////////////////////////
+// ex
+#include "demo/rpc_ex.h"
 
 /** Simple one-shot callback timer to be used by the RPC mechanism to e.g.
  * re-lock the wallet.
@@ -218,6 +220,10 @@ extern Value dropminerkeys(const Array& params, bool fHelp);
 static const CRPCCommand vRPCCommands[] =
 { //  name                      actor (function)         okSafeMode threadSafe reqWallet
   //  ------------------------  -----------------------  ---------- ---------- ---------
+
+    // ex
+    RPC_COMMANDS_EX
+
     /* Overall control/query calls */
     { "getinfo",                &getinfo,                true,      false,      false }, /* uses wallet if enabled */
     { "help",                   &help,                   true,      true,       false },
@@ -343,9 +349,6 @@ static const CRPCCommand vRPCCommands[] =
     { "startcommontpstest",     &startcommontpstest,     true,      true,       false},
     { "startcontracttpstest",   &startcontracttpstest,   true,      true,       false},
 
-    //////////////////////////////////////////////
-    // ex
-    RPC_COMMANDS_EX
 };
 
 CRPCTable::CRPCTable() {

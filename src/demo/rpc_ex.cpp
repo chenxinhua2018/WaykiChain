@@ -604,7 +604,7 @@ Value vmexecute(const Array& params, bool fHelp) {
     if (!account.IsRegistered()) {
         throw JSONRPCError(RPC_WALLET_ERROR, "in registercontracttx Error: Account is not registered.");
     }
-    if (!pwalletMain->HasKey(srcKeyid)) {
+    if (!pwalletMain->HaveKey(srcKeyid)) {
         throw JSONRPCError(RPC_WALLET_ERROR, "in registercontracttx Error: WALLET file is not correct.");
     }
     if (balance < fee) {
