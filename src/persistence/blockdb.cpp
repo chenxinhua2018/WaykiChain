@@ -20,6 +20,9 @@ using namespace std;
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) :
     CLevelDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe) {}
 
+CBlockTreeDB::CBlockTreeDB(const std::string &name, size_t nCacheSize, bool fMemory = false, bool fWipe = false) :
+    CLevelDBWrapper(GetDataDir() / "blocks" / name, nCacheSize, fMemory, fWipe) {}
+
 bool CBlockTreeDB::WriteBlockIndex(const CDiskBlockIndex &blockindex) {
     return Write(dbk::GenDbKey(dbk::BLOCK_INDEX, blockindex.GetBlockHash()), blockindex);
 }

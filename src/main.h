@@ -294,7 +294,7 @@ public:
     CBlockIndex *FindFork(const CBlockLocator &locator) const;
 }; //end of CChain
 
-
+#if TODO_DELETE
 
 class CCacheDBManager {
 public:
@@ -357,6 +357,8 @@ public:
         return true;
     }
 }; //end of CCacheDBManager
+
+#endif
 
 bool IsInitialBlockDownload();
 
@@ -593,7 +595,11 @@ public:
 /** The currently best known chain of headers (some of which may be invalid). */
 extern CChain chainMostWork;
 
-extern CCacheDBManager *pCdMan;
+//extern CCacheDBManager *pCdMan;
+
+extern CDBAccessManager *gDbAccessManager;
+//extern CDBCacheManager *gDbCacheManager;
+extern CDBCacheManager *pCdMan; // TODO: rename to gDbCacheManager
 
 /** nSyncTipHight  */
 extern int nSyncTipHeight;

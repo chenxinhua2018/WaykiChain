@@ -14,6 +14,8 @@
 
 #include <stdint.h>
 
+#include "dbmanager.h"
+
 using namespace std;
 
 /*
@@ -331,19 +333,19 @@ bool CContractCache::UndoDatas(const CDbOpLogs &dbOpLogs)
         auto &dbOpLog = *it;
         switch (dbOpLog.GetPrefixType()) {
             case dbk::CONTRACT_DEF:
-                return scriptCache.UndoData(dbOpLog);
+                return pCacheManager->pCacheManager->scriptCache.UndoData(dbOpLog);
             case dbk::CONTRACT_TX_OUT:
-                return acctTxListCache.UndoData(dbOpLog);
+                return pCacheManager->pCacheManager->acctTxListCache.UndoData(dbOpLog);
             case dbk::TXID_DISKINDEX:
-                return txDiskPosCache.UndoData(dbOpLog);
+                return pCacheManager->pCacheManager->txDiskPosCache.UndoData(dbOpLog);
             case dbk::CONTRACT_RELATED_KID:
-                return contractRelatedKidCache.UndoData(dbOpLog);
+                return pCacheManager->pCacheManager->contractRelatedKidCache.UndoData(dbOpLog);
             case dbk::CONTRACT_DATA:
-                return contractDataCache.UndoData(dbOpLog);
+                return pCacheManager->pCacheManager->contractDataCache.UndoData(dbOpLog);
             case dbk::CONTRACT_ITEM_NUM:
-                return contractItemCountCache.UndoData(dbOpLog);
+                return pCacheManager->pCacheManager->contractItemCountCache.UndoData(dbOpLog);
             case dbk::CONTRACT_ACCOUNT:
-                return contractAccountCache.UndoData(dbOpLog);
+                return pCacheManager->pCacheManager->contractAccountCache.UndoData(dbOpLog);
             default:
                 LogPrint("ERROR", "CContractCache::UndoDatas can not handle the dbOpLog=", dbOpLog.ToString());
                 return false;
@@ -545,7 +547,7 @@ bool CContractCache::GetScript(const int nIndex, string &scriptId, string &value
 bool CContractCache::SetScript(const string &scriptId, const string &content) {
 
 /*TODO:....
-    if (!scriptCache.HaveData(scriptId)) {
+    if (!pCacheManager->scriptCache.HaveData(scriptId)) {
         int nCount(0);
         GetScriptCount(nCount);
         ++nCount;
@@ -553,16 +555,16 @@ bool CContractCache::SetScript(const string &scriptId, const string &content) {
             return false;
     }
 */
-    return scriptCache.SetData(scriptId, content);
+    return pCacheManager->scriptCache.SetData(scriptId, content);
 }
 
 bool CContractCache::Flush() {
     return false;
-    scriptCache.Flush();
-    txOutputCache.Flush();
-    acctTxListCache.Flush();
-    txDiskPosCache.Flush();
-    contractRelatedKidCache.Flush();
+    pCacheManager->scriptCache.Flush();
+    pCacheManager->txOutputCache.Flush();
+    pCacheManager->acctTxListCache.Flush();
+    pCacheManager->txDiskPosCache.Flush();
+    pCacheManager->contractRelatedKidCache.Flush();
 }
 
 unsigned int CContractCache::GetCacheSize() {
@@ -574,10 +576,10 @@ unsigned int CContractCache::GetCacheSize() {
 
 bool CContractCache::WriteTxOutPut(const uint256 &txid, const vector<CVmOperate> &vOutput, CDbOpLog &operLog) {
     vector<CVmOperate> oldValue;
-    txOutputCache.GetData(txid, oldValue);
+    pCacheManager->txOutputCache.GetData(txid, oldValue);
 
-    operLog = CDbOpLog(txOutputCache.GetPrefixType(), txid, oldValue);
-    return txOutputCache.SetData(txid, vOutput);
+    operLog = CDbOpLog(pCacheManager->txOutputCache.GetPrefixType(), txid, oldValue);
+    return pCacheManager->txOutputCache.SetData(txid, vOutput);
 }
 
 bool CContractCache::SetTxHashByAddress(const CKeyID &keyId, int nHeight, int nIndex,
@@ -586,9 +588,9 @@ bool CContractCache::SetTxHashByAddress(const CKeyID &keyId, int nHeight, int nI
     auto key = make_tuple(keyId, nHeight, nIndex);
 
     uint256 oldValue;
-    acctTxListCache.GetData(key, oldValue);
-    operLog.Set(acctTxListCache.GetPrefixType(), key, oldValue);
-    return acctTxListCache.SetData(key, txid);
+    pCacheManager->acctTxListCache.GetData(key, oldValue);
+    operLog.Set(pCacheManager->acctTxListCache.GetPrefixType(), key, oldValue);
+    return pCacheManager->acctTxListCache.SetData(key, txid);
 }
 
 bool CContractCache::GetTxHashByAddress(
@@ -633,13 +635,13 @@ bool CContractCache::GetAllContractAcc(
 bool CContractCache::ReadTxOutPut(const uint256 &txid, vector<CVmOperate> &vOutput) {
 
     vector<CVmOperate> value;
-    if (!txOutputCache.GetData(txid, value))
+    if (!pCacheManager->txOutputCache.GetData(txid, value))
         return false;
     return true;
 }
 
 bool CContractCache::ReadTxIndex(const uint256 &txid, CDiskTxPos &pos) {
-    return txDiskPosCache.GetData(txid, pos);
+    return pCacheManager->txDiskPosCache.GetData(txid, pos);
 }
 bool CContractCache::WriteTxIndexs(const vector<pair<uint256, CDiskTxPos> > &list, vector<CDbOpLog> &vTxIndexOperDB) {
     for (auto it : list) {
@@ -647,10 +649,10 @@ bool CContractCache::WriteTxIndexs(const vector<pair<uint256, CDiskTxPos> > &lis
             it.first.GetHex(), it.second.nFile, it.second.nPos, it.second.nTxOffset);
 
         CDiskTxPos oldValue;
-        txDiskPosCache.GetData(it.first, oldValue);
-        CDbOpLog opLog(txDiskPosCache.GetPrefixType(), it.first, oldValue);
+        pCacheManager->txDiskPosCache.GetData(it.first, oldValue);
+        CDbOpLog opLog(pCacheManager->txDiskPosCache.GetPrefixType(), it.first, oldValue);
         vTxIndexOperDB.push_back(opLog);
-        if (!txDiskPosCache.SetData(it.first, it.second)) {
+        if (!pCacheManager->txDiskPosCache.SetData(it.first, it.second)) {
             return false;
         }
     }
@@ -658,7 +660,7 @@ bool CContractCache::WriteTxIndexs(const vector<pair<uint256, CDiskTxPos> > &lis
 }
 
 bool CContractCache::GetScript(const string &scriptId, string &content) {
-    return scriptCache.GetData(scriptId, content);
+    return pCacheManager->scriptCache.GetData(scriptId, content);
 }
 
 bool CContractCache::GetScript(const CRegID &scriptId, string &vValue) {
@@ -668,7 +670,7 @@ bool CContractCache::GetScript(const CRegID &scriptId, string &vValue) {
 bool CContractCache::GetContractData(const int nCurBlockHeight, const string &scriptId,
                                          const string &scriptKey, string &scriptData) {
     // TODO: delete the arg nCurBlockHeight??
-    return contractDataCache.GetData(make_pair(scriptId, scriptKey), scriptData);
+    return pCacheManager->contractDataCache.GetData(make_pair(scriptId, scriptKey), scriptData);
 }
 
 bool CContractCache::GetContractData(const int nCurBlockHeight, const string &vScriptId,
@@ -827,18 +829,18 @@ bool CContractCache::SetContractData(const string &scriptId, const string &scrip
                                      const string &scriptData, CDbOpLog &operLog) {
     auto key = make_pair(scriptId, scriptKey);
     string oldData;
-    if (!contractDataCache.GetData(key, oldData)) {
+    if (!pCacheManager->contractDataCache.GetData(key, oldData)) {
         if(!IncContractItemCount(scriptId, 1)) {
             return false;
         }
     }
 
-    operLog.Set(contractDataCache.GetPrefixType(), key, oldData);
-    return contractDataCache.SetData(key, scriptData);
+    operLog.Set(pCacheManager->contractDataCache.GetPrefixType(), key, oldData);
+    return pCacheManager->contractDataCache.SetData(key, scriptData);
 }
 
 bool CContractCache::HaveScript(const string &scriptId) {
-    return scriptCache.HaveData(scriptId);
+    return pCacheManager->scriptCache.HaveData(scriptId);
 }
 
 
@@ -893,14 +895,14 @@ bool CContractCache::EraseScript(const string &scriptId) {
             return false;
     }
 */
-    scriptCache.EraseData(scriptId);
+    pCacheManager->scriptCache.EraseData(scriptId);
     return true;
 }
 
 // TODO: change count from int to int64_t
 bool CContractCache::GetContractItemCount(const string &scriptId, int &count) {
     CDBCountValue countValue;
-    if (contractItemCountCache.GetData(scriptId, countValue)) {
+    if (pCacheManager->contractItemCountCache.GetData(scriptId, countValue)) {
         count = countValue.value;
         return true;
     }
@@ -911,13 +913,13 @@ bool CContractCache::GetContractItemCount(const string &scriptId, int &count) {
 bool CContractCache::IncContractItemCount(const string &contractRegId, int count) {
 
     CDBCountValue countValue;
-    contractItemCountCache.GetData(contractRegId, countValue);
+    pCacheManager->contractItemCountCache.GetData(contractRegId, countValue);
     countValue.value += count;
     if (countValue.value < 0) {
         LogPrint("vm","[ERROR]IncContractItemCount failed contractRegId=%s, count=%d", HexStr(contractRegId), countValue.value);
         return false;
     }
-    return contractItemCountCache.SetData(contractRegId, countValue);
+    return pCacheManager->contractItemCountCache.SetData(contractRegId, countValue);
 }
 
 bool CContractCache::SetContractItemCount(const string &vScriptId, int nCount) {
@@ -948,10 +950,10 @@ bool CContractCache::EraseAppData(const string &scriptId,
 
     auto key = make_pair(scriptId, scriptKey);
     string oldData;
-    if (contractDataCache.GetData(key, oldData)) {
+    if (pCacheManager->contractDataCache.GetData(key, oldData)) {
         IncContractItemCount(scriptId, 1);
-        operLog.Set(contractDataCache.GetPrefixType(), key, oldData);
-        if (!contractDataCache.EraseData(key))
+        operLog.Set(pCacheManager->contractDataCache.GetPrefixType(), key, oldData);
+        if (!pCacheManager->contractDataCache.EraseData(key))
             return false;
     }
     return true;
@@ -1039,14 +1041,14 @@ bool CContractCache::SetContractData(const CRegID &scriptId, const string &vScri
 }
 
 bool CContractCache::SetTxRelAccout(const uint256 &txHash, const set<CKeyID> &relAccount) {
-    return contractRelatedKidCache.SetData(txHash, relAccount);
+    return pCacheManager->contractRelatedKidCache.SetData(txHash, relAccount);
 }
 bool CContractCache::GetTxRelAccount(const uint256 &txHash, set<CKeyID> &relAccount) {
-    return contractRelatedKidCache.GetData(txHash, relAccount);
+    return pCacheManager->contractRelatedKidCache.GetData(txHash, relAccount);
 }
 
 bool CContractCache::EraseTxRelAccout(const uint256 &txHash) {
-    return contractRelatedKidCache.EraseData(txHash);
+    return pCacheManager->contractRelatedKidCache.EraseData(txHash);
 }
 
 Object CContractCache::ToJsonObj() const {
@@ -1087,7 +1089,7 @@ string CContractCache::ToString() {
 
 bool CContractCache::GetScriptAcc(const CRegID &scriptId, const string &accKey,
                                       CAppUserAccount &appAccOut) {
-    return contractAccountCache.GetData(make_pair(scriptId.GetRegIdRawStr(), accKey), appAccOut);
+    return pCacheManager->contractAccountCache.GetData(make_pair(scriptId.GetRegIdRawStr(), accKey), appAccOut);
 }
 
 bool CContractCache::SetScriptAcc(const CRegID &scriptId, const CAppUserAccount &appAccIn,
@@ -1097,9 +1099,9 @@ bool CContractCache::SetScriptAcc(const CRegID &scriptId, const CAppUserAccount 
     }
     auto key = make_pair(scriptId.GetRegIdRawStr(), appAccIn.GetAccUserId());
     CAppUserAccount oldData;
-    contractAccountCache.GetData(key, oldData);
-    operlog.Set(contractAccountCache.GetPrefixType(), key, oldData);
-    return contractAccountCache.SetData(key, appAccIn);
+    pCacheManager->contractAccountCache.GetData(key, oldData);
+    operlog.Set(pCacheManager->contractAccountCache.GetPrefixType(), key, oldData);
+    return pCacheManager->contractAccountCache.SetData(key, appAccIn);
 }
 
 /* TODO: unused, delete ??

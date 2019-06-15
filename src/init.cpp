@@ -349,7 +349,7 @@ void ThreadImport(vector<boost::filesystem::path> vImportFiles) {
             LoadExternalBlockFile(file, &pos);
             nFile++;
         }
-        pCdMan->pBlockTreeDb->WriteReindexing(false);
+        gDbAccessManager->blockTreeDb.WriteReindexing(false);
         SysCfg().SetReIndex(false);
         LogPrint("INFO", "Reindexing finished\n");
         // To avoid ending up in a situation without genesis block, re-try initializing (no-op if reindexing worked):
@@ -745,7 +745,7 @@ bool AppInit(boost::thread_group &threadGroup) {
                 bool fReIndex = SysCfg().IsReindex();
                 pCdMan = new CCacheDBManager(fReIndex, false, nAccountDBCache, nContractDBCache, nDelegateDBCache,
                                              nBlockTreeDBCache);
-                if (fReIndex) pCdMan->pBlockTreeDb->WriteReindexing(true);
+                if (fReIndex) gDbAccessManager->blockTreeDb.WriteReindexing(true);
 
                 mempool.SetAccountCache(pCdMan->pAccountCache);
                 mempool.SetContractCache(pCdMan->pContractCache);

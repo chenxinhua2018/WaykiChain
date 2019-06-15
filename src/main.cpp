@@ -997,7 +997,7 @@ void static InvalidChainFound(CBlockIndex *pIndexNew) {
         // the block database anymore, as it is derived from the flags in block
         // index entry. We only write it for backward compatibility.
         // TODO: need to remove the indexBestInvalid
-        //pCdMan->pBlockTreeDb->WriteBestInvalidWork(ArithToUint256(pindexBestInvalid->nChainWork));
+        //gDbAccessManager->blockTreeDb.WriteBestInvalidWork(ArithToUint256(pindexBestInvalid->nChainWork));
     }
     LogPrint("INFO", "InvalidChainFound: invalid block=%s  height=%d  log2_work=%.8g  date=%s\n",
              pIndexNew->GetBlockHash().ToString(), pIndexNew->nHeight,
@@ -1026,7 +1026,7 @@ void static InvalidBlockFound(CBlockIndex *pIndex, const CValidationState &state
     }
     if (!state.CorruptionPossible()) {
         pIndex->nStatus |= BLOCK_FAILED_VALID;
-        pCdMan->pBlockTreeDb->WriteBlockIndex(CDiskBlockIndex(pIndex));
+        gDbAccessManager->blockTreeDb.WriteBlockIndex(CDiskBlockIndex(pIndex));
         setBlockIndexValid.erase(pIndex);
         InvalidChainFound(pIndex);
     }
@@ -1037,7 +1037,7 @@ bool InvalidateBlock(CValidationState &state, CBlockIndex *pIndex) {
 
     // Mark the block itself as invalid.
     pIndex->nStatus |= BLOCK_FAILED_VALID;
-    pCdMan->pBlockTreeDb->WriteBlockIndex(CDiskBlockIndex(pIndex));
+    gDbAccessManager->blockTreeDb.WriteBlockIndex(CDiskBlockIndex(pIndex));
     setBlockIndexValid.erase(pIndex);
 
     LogPrint("INFO", "Invalidate block[%d]: %s BLOCK_FAILED_VALID\n", pIndex->nHeight,
@@ -1046,7 +1046,7 @@ bool InvalidateBlock(CValidationState &state, CBlockIndex *pIndex) {
     while (chainActive.Contains(pIndex)) {
         CBlockIndex *pindexWalk = chainActive.Tip();
         pindexWalk->nStatus |= BLOCK_FAILED_CHILD;
-        pCdMan->pBlockTreeDb->WriteBlockIndex(CDiskBlockIndex(pindexWalk));
+        gDbAccessManager->blockTreeDb.WriteBlockIndex(CDiskBlockIndex(pindexWalk));
         setBlockIndexValid.erase(pindexWalk);
 
         LogPrint("INFO", "Invalidate block[%d]: %s BLOCK_FAILED_CHILD\n", pindexWalk->nHeight,
@@ -1072,7 +1072,7 @@ bool ReconsiderBlock(CValidationState &state, CBlockIndex *pIndex) {
     while (it != mapBlockIndex.end()) {
         if (it->second->nStatus & BLOCK_FAILED_MASK && it->second->GetAncestor(nHeight) == pIndex) {
             it->second->nStatus &= ~BLOCK_FAILED_MASK;
-            pCdMan->pBlockTreeDb->WriteBlockIndex(CDiskBlockIndex(it->second));
+            gDbAccessManager->blockTreeDb.WriteBlockIndex(CDiskBlockIndex(it->second));
             setBlockIndexValid.insert(it->second);
             if (it->second == pindexBestInvalid) {
                 // Reset invalid block marker if it was pointing to one of those.
@@ -1087,7 +1087,7 @@ bool ReconsiderBlock(CValidationState &state, CBlockIndex *pIndex) {
         if (pIndex->nStatus & BLOCK_FAILED_MASK) {
             pIndex->nStatus &= ~BLOCK_FAILED_MASK;
             setBlockIndexValid.insert(pIndex);
-            pCdMan->pBlockTreeDb->WriteBlockIndex(CDiskBlockIndex(pIndex));
+            gDbAccessManager->blockTreeDb.WriteBlockIndex(CDiskBlockIndex(pIndex));
         }
         pIndex = pIndex->pprev;
     }
@@ -1435,7 +1435,7 @@ bool ConnectBlock(CBlock &block, CCacheWrapper &cw, CBlockIndex *pIndex, CValida
         pIndex->nStatus = (pIndex->nStatus & ~BLOCK_VALID_MASK) | BLOCK_VALID_SCRIPTS;
 
         CDiskBlockIndex blockindex(pIndex);
-        if (!pCdMan->pBlockTreeDb->WriteBlockIndex(blockindex))
+        if (!gDbAccessManager->blockTreeDb.WriteBlockIndex(blockindex))
             return state.Abort(_("Failed to write block index"));
     }
 
@@ -1476,7 +1476,7 @@ bool static WriteChainState(CValidationState &state) {
             return state.Error("out of disk space");
 
         FlushBlockFile();
-        pCdMan->pBlockTreeDb->Sync();
+        gDbAccessManager->blockTreeDb.Sync();
         if (!pCdMan->pAccountCache->Flush())
             return state.Abort(_("Failed to write to account database"));
 
@@ -1789,7 +1789,7 @@ bool AddToBlockIndex(CBlock &block, CValidationState &state, const CDiskBlockPos
     pIndexNew->nStatus    = BLOCK_VALID_TRANSACTIONS | BLOCK_HAVE_DATA;
     setBlockIndexValid.insert(pIndexNew);
 
-    if (!pCdMan->pBlockTreeDb->WriteBlockIndex(CDiskBlockIndex(pIndexNew)))
+    if (!gDbAccessManager->blockTreeDb.WriteBlockIndex(CDiskBlockIndex(pIndexNew)))
         return state.Abort(_("Failed to write block index"));
     int64_t tempTime = GetTimeMillis();
     // New best?
@@ -1805,7 +1805,7 @@ bool AddToBlockIndex(CBlock &block, CValidationState &state, const CDiskBlockPos
     } else
         CheckForkWarningConditionsOnNewFork(pIndexNew);
 
-    if (!pCdMan->pBlockTreeDb->Flush())
+    if (!gDbAccessManager->blockTreeDb.Flush())
         return state.Abort(_("Failed to sync block index"));
 
     if (chainActive.Tip()->nHeight > nSyncTipHeight)
@@ -1823,7 +1823,7 @@ bool FindBlockPos(CValidationState &state, CDiskBlockPos &pos, unsigned int nAdd
         if (nLastBlockFile != pos.nFile) {
             nLastBlockFile = pos.nFile;
             infoLastBlockFile.SetNull();
-            pCdMan->pBlockTreeDb->ReadBlockFileInfo(nLastBlockFile, infoLastBlockFile);
+            gDbAccessManager->blockTreeDb.ReadBlockFileInfo(nLastBlockFile, infoLastBlockFile);
             fUpdatedLast = true;
         }
     } else {
@@ -1832,7 +1832,7 @@ bool FindBlockPos(CValidationState &state, CDiskBlockPos &pos, unsigned int nAdd
             FlushBlockFile(true);
             nLastBlockFile++;
             infoLastBlockFile.SetNull();
-            pCdMan->pBlockTreeDb->ReadBlockFileInfo(nLastBlockFile, infoLastBlockFile);  // check whether data for the new file somehow already exist; can fail just fine
+            gDbAccessManager->blockTreeDb.ReadBlockFileInfo(nLastBlockFile, infoLastBlockFile);  // check whether data for the new file somehow already exist; can fail just fine
             fUpdatedLast = true;
         }
         pos.nFile = nLastBlockFile;
@@ -1858,10 +1858,10 @@ bool FindBlockPos(CValidationState &state, CDiskBlockPos &pos, unsigned int nAdd
         }
     }
 
-    if (!pCdMan->pBlockTreeDb->WriteBlockFileInfo(nLastBlockFile, infoLastBlockFile))
+    if (!gDbAccessManager->blockTreeDb.WriteBlockFileInfo(nLastBlockFile, infoLastBlockFile))
         return state.Abort(_("Failed to write file info"));
     if (fUpdatedLast)
-        pCdMan->pBlockTreeDb->WriteLastBlockFile(nLastBlockFile);
+        gDbAccessManager->blockTreeDb.WriteLastBlockFile(nLastBlockFile);
 
     return true;
 }
@@ -1875,15 +1875,15 @@ bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, unsigne
     if (nFile == nLastBlockFile) {
         pos.nPos = infoLastBlockFile.nUndoSize;
         nNewSize = (infoLastBlockFile.nUndoSize += nAddSize);
-        if (!pCdMan->pBlockTreeDb->WriteBlockFileInfo(nLastBlockFile, infoLastBlockFile))
+        if (!gDbAccessManager->blockTreeDb.WriteBlockFileInfo(nLastBlockFile, infoLastBlockFile))
             return state.Abort(_("Failed to write block info"));
     } else {
         CBlockFileInfo info;
-        if (!pCdMan->pBlockTreeDb->ReadBlockFileInfo(nFile, info))
+        if (!gDbAccessManager->blockTreeDb.ReadBlockFileInfo(nFile, info))
             return state.Abort(_("Failed to read block info"));
         pos.nPos = info.nUndoSize;
         nNewSize = (info.nUndoSize += nAddSize);
-        if (!pCdMan->pBlockTreeDb->WriteBlockFileInfo(nFile, info))
+        if (!gDbAccessManager->blockTreeDb.WriteBlockFileInfo(nFile, info))
             return state.Abort(_("Failed to write block info"));
     }
 
@@ -2582,7 +2582,7 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes) {
 }
 
 bool static LoadBlockIndexDB() {
-    if (!pCdMan->pBlockTreeDb->LoadBlockIndexGuts())
+    if (!gDbAccessManager->blockTreeDb.LoadBlockIndexGuts())
         return false;
 
     boost::this_thread::interruption_point();
@@ -2608,21 +2608,21 @@ bool static LoadBlockIndexDB() {
     }
 
     // Load block file info
-    pCdMan->pBlockTreeDb->ReadLastBlockFile(nLastBlockFile);
+    gDbAccessManager->blockTreeDb.ReadLastBlockFile(nLastBlockFile);
     LogPrint("INFO", "LoadBlockIndexDB(): last block file = %i\n", nLastBlockFile);
-    if (pCdMan->pBlockTreeDb->ReadBlockFileInfo(nLastBlockFile, infoLastBlockFile))
+    if (gDbAccessManager->blockTreeDb.ReadBlockFileInfo(nLastBlockFile, infoLastBlockFile))
         LogPrint("INFO", "LoadBlockIndexDB(): last block file info: %s\n", infoLastBlockFile.ToString());
 
     // Check whether we need to continue reindexing
     bool fReindexing = false;
-    pCdMan->pBlockTreeDb->ReadReindexing(fReindexing);
+    gDbAccessManager->blockTreeDb.ReadReindexing(fReindexing);
 
     bool fcurReinx = SysCfg().IsReindex();
     SysCfg().SetReIndex(fcurReinx |= fReindexing);
 
     // Check whether we have a transaction index
     bool bTxIndex = SysCfg().IsTxIndex();
-    pCdMan->pBlockTreeDb->ReadFlag("txindex", bTxIndex);
+    gDbAccessManager->blockTreeDb.ReadFlag("txindex", bTxIndex);
     SysCfg().SetTxIndex(bTxIndex);
     LogPrint("INFO", "LoadBlockIndexDB(): transaction index %s\n", bTxIndex ? "enabled" : "disabled");
 
@@ -2754,7 +2754,7 @@ bool InitBlockIndex() {
 
     // Use the provided setting for -txindex in the new database
     SysCfg().SetTxIndex(SysCfg().GetBoolArg("-txindex", true));
-    pCdMan->pBlockTreeDb->WriteFlag("txindex", SysCfg().IsTxIndex());
+    gDbAccessManager->blockTreeDb.WriteFlag("txindex", SysCfg().IsTxIndex());
     LogPrint("INFO", "Initializing databases...\n");
 
     // Only add the genesis block if not reindexing (in which case we reuse the one already on disk)
@@ -2846,7 +2846,7 @@ bool LoadExternalBlockFile(FILE *fileIn, CDiskBlockPos *dbp) {
         if (dbp) {
             // (try to) skip already indexed part
             CBlockFileInfo info;
-            if (pCdMan->pBlockTreeDb->ReadBlockFileInfo(dbp->nFile, info)) {
+            if (gDbAccessManager->blockTreeDb.ReadBlockFileInfo(dbp->nFile, info)) {
                 nStartByte = info.nSize;
                 blkdat.Seek(info.nSize);
             }

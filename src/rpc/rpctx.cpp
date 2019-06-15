@@ -1641,7 +1641,7 @@ static Value TestDisconnectBlock(int number) {
             chainMostWork.SetTip(pTipIndex->pprev);
             if (!EraseBlockIndexFromSet(pTipIndex))
                 return false;
-            if (!pCdMan->pBlockTreeDb->EraseBlockIndex(pTipIndex->GetBlockHash()))
+            if (!gDbAccessManager->blockTreeDb.EraseBlockIndex(pTipIndex->GetBlockHash()))
                 return false;
             mapBlockIndex.erase(pTipIndex->GetBlockHash());
         } while (--number);

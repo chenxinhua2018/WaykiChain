@@ -11,7 +11,7 @@
 #include "persistence/leveldbwrapper.h"
 #include "persistence/disk.h"
 #include "vm/appaccount.h"
-#include "dbaccess.h"
+#include "dbmanager.h"
 #include "accounts/account.h"
 
 #include <map>
@@ -57,40 +57,43 @@ class CContractCache {
 //    IContractView *pBase;
 
 private:
-    CDBMultiValueCache<string, string>                        scriptCache;            // scriptRegId -> script content
-    CDBMultiValueCache<uint256, vector<CVmOperate>>           txOutputCache;          // txId -> vector<CVmOperate>
-    CDBMultiValueCache<std::tuple<CKeyID, int, int>, uint256> acctTxListCache;        // keyId,height,index -> txid
-    CDBMultiValueCache<uint256, CDiskTxPos>                   txDiskPosCache;         // txId -> DiskTxPos
-    CDBMultiValueCache<uint256, set<CKeyID>>                  contractRelatedKidCache;// contractTxId -> relatedAccounts
-    CDBMultiValueCache<pair<string, string>, string>          contractDataCache;      // pair<scriptId, scriptKey> -> scriptData
-    CDBMultiValueCache<string, CDBCountValue>                 contractItemCountCache; // scriptId -> contractItemCount
-    CDBMultiValueCache<pair<string, string>, CAppUserAccount> contractAccountCache;   // scriptId -> contractItemCount
+    CDBCacheManager *pCacheManager;
+    // CDBMultiValueCache<string, string>                        scriptCache;            // scriptRegId -> script content
+    // CDBMultiValueCache<uint256, vector<CVmOperate>>           txOutputCache;          // txId -> vector<CVmOperate>
+    // CDBMultiValueCache<std::tuple<CKeyID, int, int>, uint256> acctTxListCache;        // keyId,height,index -> txid
+    // CDBMultiValueCache<uint256, CDiskTxPos>                   txDiskPosCache;         // txId -> DiskTxPos
+    // CDBMultiValueCache<uint256, set<CKeyID>>                  contractRelatedKidCache;// contractTxId -> relatedAccounts
+    // CDBMultiValueCache<pair<string, string>, string>          contractDataCache;      // pair<scriptId, scriptKey> -> scriptData
+    // CDBMultiValueCache<string, CDBCountValue>                 contractItemCountCache; // scriptId -> contractItemCount
+    // CDBMultiValueCache<pair<string, string>, CAppUserAccount> contractAccountCache;   // scriptId -> contractItemCount
 
 public:
     map<string, string > mapContractDb;
 
 public:
-    CContractCache() {}
+    CContractCache(CDBCacheManager *pCacheManagerIn): pCacheManager(pCacheManagerIn) {
+        assert(pCacheManager != nullptr);
+    }
 
-    CContractCache(CDBAccess *pDbAccess):
-        scriptCache(pDbAccess, dbk::CONTRACT_DEF),
-        txOutputCache(pDbAccess, dbk::CONTRACT_TX_OUT),
-        acctTxListCache(pDbAccess, dbk::LIST_KEYID_TX),
-        txDiskPosCache(pDbAccess, dbk::TXID_DISKINDEX),
-        contractRelatedKidCache(pDbAccess, dbk::CONTRACT_RELATED_KID),
-        contractDataCache(pDbAccess, dbk::CONTRACT_DATA),
-        contractItemCountCache(pDbAccess, dbk::CONTRACT_ITEM_NUM),
-        contractAccountCache(pDbAccess, dbk::CONTRACT_ACCOUNT) {};
+    // CContractCache(CDBAccess *pDbAccess):
+    //     scriptCache(pDbAccess, dbk::CONTRACT_DEF),
+    //     txOutputCache(pDbAccess, dbk::CONTRACT_TX_OUT),
+    //     acctTxListCache(pDbAccess, dbk::LIST_KEYID_TX),
+    //     txDiskPosCache(pDbAccess, dbk::TXID_DISKINDEX),
+    //     contractRelatedKidCache(pDbAccess, dbk::CONTRACT_RELATED_KID),
+    //     contractDataCache(pDbAccess, dbk::CONTRACT_DATA),
+    //     contractItemCountCache(pDbAccess, dbk::CONTRACT_ITEM_NUM),
+    //     contractAccountCache(pDbAccess, dbk::CONTRACT_ACCOUNT) {};
 
-    CContractCache(CContractCache *pBaseIn):
-        scriptCache(pBaseIn->scriptCache),
-        txOutputCache(pBaseIn->txOutputCache),
-        acctTxListCache(pBaseIn->acctTxListCache),
-        txDiskPosCache(pBaseIn->txDiskPosCache),
-        contractRelatedKidCache(pBaseIn->contractRelatedKidCache),
-        contractDataCache(pBaseIn->contractDataCache),
-        contractItemCountCache(pBaseIn->contractItemCountCache),
-        contractAccountCache(pBaseIn->contractAccountCache) {};
+    // CContractCache(CContractCache *pBaseIn):
+    //     scriptCache(pBaseIn->scriptCache),
+    //     txOutputCache(pBaseIn->txOutputCache),
+    //     acctTxListCache(pBaseIn->acctTxListCache),
+    //     txDiskPosCache(pBaseIn->txDiskPosCache),
+    //     contractRelatedKidCache(pBaseIn->contractRelatedKidCache),
+    //     contractDataCache(pBaseIn->contractDataCache),
+    //     contractItemCountCache(pBaseIn->contractItemCountCache),
+    //     contractAccountCache(pBaseIn->contractAccountCache) {};
 
     bool GetScript(const CRegID &scriptId, string &value);
     bool GetScript(const int nIndex, CRegID &scriptId, string &value);

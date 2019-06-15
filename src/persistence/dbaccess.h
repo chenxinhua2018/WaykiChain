@@ -134,8 +134,8 @@ public:
 
 class CDBAccess {
 public:
-    CDBAccess(const string &name, size_t nCacheSize, bool fMemory, bool fWipe) :
-                db( GetDataDir() / "blocks" / name, nCacheSize, fMemory, fWipe ) {}
+    CDBAccess(const string &nameIn, size_t nCacheSize, bool fMemory, bool fWipe) :
+                db( GetDataDir() / "blocks" / nameIn, nCacheSize, fMemory, fWipe ), dbName(nameIn) {}
 
     template<typename KeyType, typename ValueType>
     bool GetData(const dbk::PrefixType prefixType, const KeyType &key, ValueType &value) const {
@@ -208,13 +208,14 @@ public:
         db.WriteBatch(batch, true);
     }
 
+    const std::string& GetDbName() { return dbName; }
 private:
     mutable CLevelDBWrapper db; // // TODO: remove the mutable declare
+    std::string dbName;
 };
 
-template<typename KeyType, typename ValueType>
+template<int PREFIX_TYPE, typename KeyType, typename ValueType>
 class CDBMultiValueCache {
-
 public:
     typedef typename map<KeyType, ValueType>::iterator Iterator;
 
@@ -224,17 +225,17 @@ public:
      */
     CDBMultiValueCache(): pBase(nullptr), pDbAccess(nullptr), prefixType(dbk::EMPTY) {};
 
-    CDBMultiValueCache(CDBMultiValueCache<KeyType, ValueType> *pBaseIn): pBase(pBaseIn),
+    CDBMultiValueCache(CDBMultiValueCache<PREFIX_TYPE, KeyType, ValueType> *pBaseIn): pBase(pBaseIn),
         pDbAccess(nullptr), prefixType(pBaseIn->prefixType) {
         assert(pBaseIn != nullptr);
     };
 
-    CDBMultiValueCache(CDBAccess *pDbAccessIn, dbk::PrefixType prefixTypeIn): pBase(nullptr),
-        pDbAccess(pDbAccessIn), prefixType(prefixTypeIn) {
+    CDBMultiValueCache(CDBAccess *pDbAccessIn): pBase(nullptr),
+        pDbAccess(pDbAccessIn) {
         assert(pDbAccessIn != nullptr);
     };
 
-    void SetBase(CDBMultiValueCache<KeyType, ValueType> *pBaseIn) {
+    void SetBase(CDBMultiValueCache<PREFIX_TYPE, KeyType, ValueType> *pBaseIn) {
         assert(pDbAccess == nullptr);
         assert(mapData.empty());
         pBase = pBaseIn;
@@ -320,7 +321,7 @@ public:
         dbOpLog.Get(key, value);
     }
 
-    dbk::PrefixType GetPrefixType() const { return prefixType; }
+    dbk::PrefixType GetPrefixType() const { return PREFIX_TYPE_IN; }
 
 private:
     Iterator GetDataIt(const KeyType &key) const {
@@ -384,14 +385,14 @@ private:
     }
 
 private:
-    mutable CDBMultiValueCache<KeyType, ValueType> *pBase;
+    mutable CDBMultiValueCache<PREFIX_TYPE, KeyType, ValueType> *pBase;
     CDBAccess *pDbAccess;
     dbk::PrefixType prefixType;
     mutable map<KeyType, ValueType> mapData;
 };
 
 
-template<typename ValueType>
+template<int PREFIX_TYPE, typename ValueType>
 class CDBScalarValueCache {
 public:
     /**
@@ -399,17 +400,17 @@ public:
      */
     CDBScalarValueCache(): pBase(nullptr), pDbAccess(nullptr), prefixType(dbk::EMPTY) {};
 
-    CDBScalarValueCache(CDBScalarValueCache<ValueType> *pBaseIn): pBase(pBaseIn),
+    CDBScalarValueCache(CDBScalarValueCache<PREFIX_TYPE, ValueType> *pBaseIn): pBase(pBaseIn),
         pDbAccess(nullptr), prefixType(pBaseIn->prefixType) {
         assert(pBaseIn != nullptr);
     };
 
-    CDBScalarValueCache(CDBAccess *pDbAccessIn, dbk::PrefixType prefixTypeIn): pBase(nullptr),
+    CDBScalarValueCache(CDBAccess *pDbAccessIn): pBase(nullptr),
         pDbAccess(pDbAccessIn), prefixType(prefixTypeIn) {
         assert(pDbAccessIn != nullptr);
     };
 
-    void SetBase(CDBScalarValueCache<ValueType> *pBaseIn) {
+    void SetBase(CDBScalarValueCache<PREFIX_TYPE, ValueType> *pBaseIn) {
         assert(pDbAccess == nullptr);
         assert(!ptrData);
         pBase = pBaseIn;
@@ -469,7 +470,7 @@ public:
         dbOpLog.Get(*ptrData);
     }
 
-    dbk::PrefixType GetPrefixType() const { return prefixType; }
+    dbk::PrefixType GetPrefixType() const { return PREFIX_TYPE; }
 
 private:
     std::shared_ptr<ValueType> GetDataPtr() const {
@@ -498,7 +499,7 @@ private:
         return nullptr;
     };
 private:
-    mutable CDBScalarValueCache<ValueType> *pBase;
+    mutable CDBScalarValueCache<PREFIX_TYPE, ValueType> *pBase;
     CDBAccess *pDbAccess;
     dbk::PrefixType prefixType;
     mutable std::shared_ptr<ValueType> ptrData;

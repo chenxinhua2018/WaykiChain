@@ -13,7 +13,7 @@
 #include <stdarg.h>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
-
+#include "persistence/dbmanager.h"
 #ifndef WIN32
 // for posix_fallocate
 #ifdef __linux_
