@@ -374,6 +374,14 @@ public:
         return true;
     };
 
+    bool SetData(const KeyType &key, const ValueType &value, CDBOpLogsMap &dbOpLogsMap) {
+        CDbOpLog dbOpLog;
+        if (SetData(key, value, dbOpLog)) {
+            dbOpLogsMap.AddOpLog(PREFIX_TYPE, dbOpLog);
+            return true;
+        }
+        return false;
+    }
 
     bool HaveData(const KeyType &key) const {
         if (db_util::IsEmpty(key)) {
@@ -409,6 +417,15 @@ public:
             db_util::SetEmpty(it->second);
         }
         return true;
+    }
+
+    bool EraseData(const KeyType &key, CDBOpLogsMap &dbOpLogsMap) {
+        CDbOpLog dbOpLog;
+        if (EraseData(key, dbOpLog)) {
+            dbOpLogsMap.AddOpLog(PREFIX_TYPE, key, dbOpLog);
+            return true;
+        }
+        return false;
     }
 
     void Flush() {
@@ -589,6 +606,16 @@ public:
         return true;
     };
 
+
+    bool SetData(const ValueType &value, CDBOpLogsMap &dbOpLogsMap) {
+        CDbOpLog dbOpLog;
+        if (SetData(value, dbOpLog)) {
+            dbOpLogsMap.AddOpLog(PREFIX_TYPE, dbOpLog);
+            return true;
+        }
+        return false;
+    }
+
     bool HaveData() const {
         auto ptr = GetDataPtr();
         return ptr && !db_util::IsEmpty(*ptr);
@@ -614,6 +641,15 @@ public:
             db_util::SetEmpty(*ptr);
         }
         return true;
+    }
+
+    bool EraseData(CDBOpLogsMap &dbOpLogsMap) {
+        CDbOpLog dbOpLog;
+        if (EraseData(dbOpLog)) {
+            dbOpLogsMap.AddOpLog(PREFIX_TYPE, dbOpLog);
+            return true;
+        }
+        return false;
     }
 
     void Flush() {

@@ -80,20 +80,20 @@ public:
     bool GetScript(const CRegID &scriptId, string &value);
     bool GetScript(const int nIndex, CRegID &scriptId, string &value);
     bool GetScriptAcc(const CRegID &scriptId, const string &key, CAppUserAccount &appAccOut);
-    bool SetScriptAcc(const CRegID &scriptId, const CAppUserAccount &appAccIn, CDbOpLog &operlog);
+    bool SetScriptAcc(const CRegID &scriptId, const CAppUserAccount &appAccIn, CDBOpLogsMap &dbOpLogsMap);
     bool EraseScriptAcc(const CRegID &scriptId, const string &key);
     bool SetScript(const CRegID &scriptId, const string &value);
     bool HaveScript(const CRegID &scriptId);
     bool EraseScript(const CRegID &scriptId);
     bool GetContractItemCount(const CRegID &scriptId, int &nCount);
-    bool EraseAppData(const CRegID &scriptId, const string &contractKey, CDbOpLog &operLog);
+    bool EraseAppData(const CRegID &scriptId, const string &contractKey, CDBOpLogsMap &dbOpLogsMap);
     bool HaveScriptData(const CRegID &scriptId, const string &contractKey);
     bool GetContractData(const int nCurBlockHeight, const CRegID &scriptId, const string &contractKey,
                          string &vScriptData);
     bool GetContractData(const int nCurBlockHeight, const CRegID &scriptId, const int &nIndex,
                          string &contractKey, string &vScriptData);
     bool SetContractData(const CRegID &scriptId, const string &contractKey,
-                         const string &vScriptData, CDbOpLog &operLog);
+                         const string &vScriptData, CDBOpLogsMap &dbOpLogsMap);
 
     bool UndoData(dbk::PrefixType prefixType, const CDbOpLogs &dbOpLogs);
 
@@ -130,7 +130,7 @@ public:
      }
 
     string ToString();
-    bool WriteTxOutPut(const uint256 &txid, const vector<CVmOperate> &vOutput, CDbOpLog &operLog);
+    bool WriteTxOutPut(const uint256 &txid, const vector<CVmOperate> &vOutput, CDBOpLogsMap &dbOpLogsMap);
     bool ReadTxOutPut(const uint256 &txid, vector<CVmOperate> &vOutput);
     bool GetTxHashByAddress(const CKeyID &keyId, uint32_t height, map<string, string > &mapTxHash);
     bool SetTxHashByAddress(const CKeyID &keyId, uint32_t height, uint32_t index, const uint256 &txid, CDbOpLog &operLog);
@@ -205,7 +205,7 @@ private:
      * @param vScriptKey must be 8 bytes
      * @return true if delete succeed, otherwise false
      */
-    bool EraseAppData(const string &contractRegId, const string &contractKey, CDbOpLog &operLog);
+    bool EraseAppData(const string &contractRegId, const string &contractKey, CDBOpLogsMap &dbOpLogsMap);
 
     bool EraseAppData(const string &key);
     /**
@@ -245,7 +245,7 @@ private:
      * @return true if save succeed, otherwise false
      */
     bool SetContractData(const string &contractRegId, const string &contractKey,
-                         const string &vScriptData, CDbOpLog &operLog);
+                         const string &vScriptData, CDBOpLogsMap &dbOpLogsMap);
 private:
 /*       type               prefixType               key                     value                 variable               */
 /*  ----------------   -------------------------   -----------------------  ------------------   ------------------------ */

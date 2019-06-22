@@ -407,7 +407,7 @@ bool CContractInvokeTx::ExecuteTx(int nHeight, int nIndex, CCacheWrapper &cw, CV
 
         cw.txUndo.accountLogs.push_back(oldAcctLog);
     }
-    cw.txUndo.dbOpLogsMap.AddDbOpLogs(dbk::CONTRACT_DATA, *vmRunEnv.GetDbLog());
+    cw.txUndo.dbOpLogsMap.AddOpLogs(dbk::CONTRACT_DATA, *vmRunEnv.GetDbLog());
 
     vector<std::shared_ptr<CAppUserAccount> > &vAppUserAccount = vmRunEnv.GetRawAppUserAccount();
     for (auto & itemUserAccount : vAppUserAccount) {

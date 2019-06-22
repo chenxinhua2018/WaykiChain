@@ -157,7 +157,7 @@ bool CDelegateVoteTx::ExecuteTx(int nHeight, int nIndex, CCacheWrapper &cw, CVal
 
     // Keep the old state after the above operation completed properly.
     cw.txUndo.accountLogs.push_back(acctLog);
-    cw.txUndo.dbOpLogsMap.AddDbOpLog(dbk::REGID_VOTE, dbOpLog);
+    cw.txUndo.dbOpLogsMap.AddOpLog(dbk::REGID_VOTE, dbOpLog);
     cw.txUndo.txHash = GetHash();
 
     for (const auto &vote : candidateVotes) {

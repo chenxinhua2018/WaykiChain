@@ -130,12 +130,12 @@ public:
         return mapDbOpLogs[prefix];
     }
 
-    void AddDbOpLogs(dbk::PrefixType prefixType, const CDbOpLogs& dbOpLogsIn) {
+    void AddOpLogs(dbk::PrefixType prefixType, const CDbOpLogs& dbOpLogsIn) {
         CDbOpLogs& dbOpLogs = GetDbOpLogs(prefixType);
         dbOpLogs.insert(dbOpLogs.end(), dbOpLogsIn.begin(), dbOpLogsIn.end());
     }
 
-    void AddDbOpLog(dbk::PrefixType prefixType, const CDbOpLog& dbOpLogIn) {
+    void AddOpLog(dbk::PrefixType prefixType, const CDbOpLog& dbOpLogIn) {
         CDbOpLogs& dbOpLogs = GetDbOpLogs(prefixType);
         dbOpLogs.push_back(dbOpLogIn);
     }
