@@ -20,5 +20,3 @@ struct UnitTestingSetup {
 
 BOOST_GLOBAL_FIXTURE(UnitTestingSetup);
 
-
-

@@ -9,6 +9,8 @@
 #include "dbconf.h"
 #include "leveldbwrapper.h"
 
+#include <string>
+#include <vector>
 #include <tuple>
 
 /**
