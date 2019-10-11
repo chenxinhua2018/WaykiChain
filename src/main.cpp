@@ -499,6 +499,8 @@ bool GetTransaction(std::shared_ptr<CBaseTx> &pBaseTx, const uint256 &hash, CBlo
 //
 
 bool WriteBlockToDisk(CBlock &block, CDiskBlockPos &pos) {
+    uint32_t startPos = pos.nPos;
+    int64_t writeTime = GetTimeMicros();
     // Open history file to append
     CAutoFile fileout = CAutoFile(OpenBlockFile(pos), SER_DISK, CLIENT_VERSION);
     if (!fileout)
@@ -520,6 +522,10 @@ bool WriteBlockToDisk(CBlock &block, CDiskBlockPos &pos) {
     if (!IsInitialBlockDownload())
         FileCommit(fileout);
 
+    int64_t endtWriteTime = GetTimeMicros();
+    LogPrint("STORE", " %.3fms Write block. block[%u]=%s, file=%s, pos=%u, size=%u, commit=%d, writeTime=%.3fms\n",
+        0.001 * endtWriteTime, block.GetHeight(), block.GetHash().ToString(), pos.nFile, startPos, nSize, !IsInitialBlockDownload(),
+        0.001 * (endtWriteTime - writeTime));
     return true;
 }
 
@@ -1146,7 +1152,7 @@ static bool ComputeVoteStakingInterestAndRevokeVotes(const int32_t currHeight, c
     return true;
 }
 
-bool ConnectBlock(CBlock &block, CCacheWrapper &cw, CBlockIndex *pIndex, CValidationState &state, bool fJustCheck) {
+bool ConnectBlock(CBlock &block, CCacheWrapper &cw, CBlockIndex *pIndex, CValidationState &state, bool fJustCheck, const string &action) {
     AssertLockHeld(cs_main);
 
     bool isGensisBlock = block.GetHeight() == 0 && block.GetHash() == SysCfg().GetGenesisBlockHash();
@@ -1360,11 +1366,18 @@ bool ConnectBlock(CBlock &block, CCacheWrapper &cw, CBlockIndex *pIndex, CValida
     if (pIndex->GetUndoPos().IsNull() || (pIndex->nStatus & BLOCK_VALID_MASK) < BLOCK_VALID_SCRIPTS) {
         if (pIndex->GetUndoPos().IsNull()) {
             CDiskBlockPos pos;
-            if (!FindUndoPos(state, pIndex->nFile, pos, ::GetSerializeSize(blockUndo, SER_DISK, CLIENT_VERSION) + 40))
+            int64_t startWriteTime = GetTimeMicros();
+            uint32_t sz = ::GetSerializeSize(blockUndo, SER_DISK, CLIENT_VERSION) + 40;
+            if (!FindUndoPos(state, pIndex->nFile, pos, sz))
                 return ERRORMSG("ConnectBlock() : failed to find undo data's position");
 
             if (!blockUndo.WriteToDisk(pos, pIndex->pprev->GetBlockHash()))
                 return state.Abort(_("ConnectBlock() : failed to write undo data"));
+
+            int64_t endtWriteTime = GetTimeMicros();
+            LogPrint("STORE", " %.3fms Write undo, %s, block[%u]=%s, file=%s, pos=%u, size=%u, writeTime=%.3fms\n",
+                0.001 * endtWriteTime, action, pIndex->height, pIndex->GetBlockHash().ToString(), pos.nFile, pos.nPos, sz,
+                0.001 * (endtWriteTime - startWriteTime));
 
             // Update nUndoPos in block index
             pIndex->nUndoPos = pos.nPos;
@@ -1452,11 +1465,17 @@ bool static WriteChainState(CValidationState &state) {
         if (!CheckDiskSpace(cachesize))
             return state.Error("out of disk space");
 
+        int64_t startWriteTime = GetTimeMicros();
         FlushBlockFile();
         // pCdMan->pBlockCache->Sync();
         pCdMan->Flush();
 
         mapForkCache.clear();
+
+        int64_t endtWriteTime = GetTimeMicros();
+        LogPrint("STORE", " %.3fms Write Chain State, flush all cache. cachesize=%u, lastWriteTime=%lld, writeInterval=%.3fms, writeTime=%.3fms\n",
+            0.001 * endtWriteTime, cachesize, nLastWrite, 0.001 * (endtWriteTime - nLastWrite), 0.001 * (endtWriteTime - startWriteTime));
+
         nLastWrite = GetTimeMicros();
     }
     return true;
@@ -1568,7 +1587,7 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pIndexNew) {
         CInv inv(MSG_BLOCK, pIndexNew->GetBlockHash());
 
         auto spCW = std::make_shared<CCacheWrapper>(pCdMan);
-        if (!ConnectBlock(block, *spCW, pIndexNew, state)) {
+        if (!ConnectBlock(block, *spCW, pIndexNew, state, false, "ConnectTip()")) {
             if (state.IsInvalid()) {
                 InvalidBlockFound(pIndexNew, state);
             }
@@ -1938,7 +1957,7 @@ bool ProcessForkedChain(const CBlock &block, CBlockIndex *pPreBlockIndex, CValid
             LogPrint("INFO", "ProcessForkedChain() : ConnectBlock block height=%d hash=%s\n", rIter->GetHeight(),
                     rIter->GetHash().GetHex());
 
-            if (!ConnectBlock(*rIter, *spNewForkCW, mapBlockIndex[rIter->GetHash()], state, false)) {
+            if (!ConnectBlock(*rIter, *spNewForkCW, mapBlockIndex[rIter->GetHash()], state, false, "ProcessForkedChain()")) {
                 return ERRORMSG("ProcessForkedChain() : ConnectBlock %s failed", rIter->GetHash().ToString());
             }
 
@@ -2634,7 +2653,7 @@ bool VerifyDB(int32_t nCheckLevel, int32_t nCheckDepth) {
                 return ERRORMSG("VerifyDB() : *** ReadBlockFromDisk failed at %d, hash=%s",
                                 pIndex->height, pIndex->GetBlockHash().ToString());
 
-            if (!ConnectBlock(block, *spCW, pIndex, state, false))
+            if (!ConnectBlock(block, *spCW, pIndex, state, false, "VerifyDB()"))
                 return ERRORMSG("VerifyDB() : *** found un-connectable block at %d, hash=%s",
                                 pIndex->height, pIndex->GetBlockHash().ToString());
         }
