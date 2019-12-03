@@ -11,6 +11,8 @@
 #include "tx.h"
 #include "persistence/dexdb.h"
 
+#include "entities/dexexchange.h"
+
 class CDEXOrderBaseTx : public CBaseTx {
 public:
     using CBaseTx::CBaseTx;
@@ -363,6 +365,98 @@ private:
 
 private:
     vector<DEXDealItem> dealItems;
+};
+
+class CDEXExchangeRegisterTx: public CBaseTx {
+public:
+    dex::CBaseExchange      exchange;
+public:
+    CDEXExchangeRegisterTx() : CBaseTx(ASSET_ISSUE_TX) {};
+
+    CDEXExchangeRegisterTx(const CUserID &txUidIn, int32_t validHeightIn, const TokenSymbol &feeSymbol,
+                  uint64_t fees, const dex::CBaseExchange &exchangeIn)
+        : CBaseTx(ASSET_ISSUE_TX, txUidIn, validHeightIn, feeSymbol, fees),
+          exchange(exchangeIn){}
+
+    IMPLEMENT_SERIALIZE(
+        READWRITE(VARINT(this->nVersion));
+        nVersion = this->nVersion;
+        READWRITE(VARINT(valid_height));
+        READWRITE(txUid);
+        READWRITE(fee_symbol);
+        READWRITE(VARINT(llFees));
+
+        READWRITE(exchange);
+        READWRITE(signature);
+    )
+
+    TxID ComputeSignatureHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            ss << VARINT(nVersion) << uint8_t(nTxType) << VARINT(valid_height) << txUid << fee_symbol << VARINT(llFees)
+               << exchange;
+            sigHash = ss.GetHash();
+        }
+        return sigHash;
+    }
+
+    virtual TxID GetHash() const { return ComputeSignatureHash(); }
+    virtual std::shared_ptr<CBaseTx> GetNewInstance() const { return std::make_shared<CDEXExchangeRegisterTx>(*this); }
+
+    virtual string ToString(CAccountDBCache &accountCache);
+    virtual Object ToJson(const CAccountDBCache &accountCache) const;
+
+    virtual bool CheckTx(CTxExecuteContext &context);
+    virtual bool ExecuteTx(CTxExecuteContext &context);
+};
+
+/**
+ * Update the existed dex exchange
+ */
+class CDEXExchangeUpdateTx: public CBaseTx {
+public:
+    dex::CExchangeUpdateMap update_map;
+public:
+    CDEXExchangeUpdateTx() : CBaseTx(ASSET_UPDATE_TX) {}
+
+    CDEXExchangeUpdateTx(const CUserID &txUidIn, int32_t validHeightIn, const TokenSymbol &feeSymbolIn,
+                   uint64_t feesIn, dex::CExchangeUpdateMap &updateMapIn)
+        : CBaseTx(ASSET_UPDATE_TX, txUidIn, validHeightIn, feeSymbolIn, feesIn),
+          update_map(updateMapIn) {}
+
+    ~CDEXExchangeUpdateTx() {}
+
+    IMPLEMENT_SERIALIZE(
+        READWRITE(VARINT(this->nVersion));
+        nVersion = this->nVersion;
+        READWRITE(VARINT(valid_height));
+        READWRITE(txUid);
+        READWRITE(fee_symbol);
+        READWRITE(VARINT(llFees));
+
+        READWRITE(update_map);
+        READWRITE(signature);
+    )
+
+    TxID ComputeSignatureHash(bool recalculate = false) const {
+        if (recalculate || sigHash.IsNull()) {
+            CHashWriter ss(SER_GETHASH, 0);
+            ss << VARINT(nVersion) << uint8_t(nTxType) << VARINT(valid_height) << txUid << fee_symbol << VARINT(llFees)
+               << update_map;
+            sigHash = ss.GetHash();
+        }
+        return sigHash;
+    }
+
+    virtual TxID GetHash() const { return ComputeSignatureHash(); }
+    virtual std::shared_ptr<CBaseTx> GetNewInstance() const { return std::make_shared<CDEXExchangeUpdateTx>(*this); }
+
+    virtual string ToString(CAccountDBCache &accountCache);
+    virtual Object ToJson(const CAccountDBCache &accountCache) const;
+
+    virtual bool CheckTx(CTxExecuteContext &context);
+    virtual bool ExecuteTx(CTxExecuteContext &context);
+
 };
 
 #endif  // TX_DEX_H

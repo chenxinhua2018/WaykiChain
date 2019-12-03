@@ -84,6 +84,7 @@ coin_CORE_H = \
   entities/cdp.h \
   entities/contract.h \
   entities/dexorder.h \
+  entities/dexexchange.h \
   entities/id.h \
   entities/key.h \
   entities/keystore.h \
