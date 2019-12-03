@@ -156,6 +156,7 @@ coin_CORE_H = \
   rpc/core/rpcserver.h \
   rpc/rpcblockchain.h \
   rpc/rpcdump.h \
+  rpc/rpcdex.h \
   rpc/rpcmining.h \
   rpc/rpcmisc.h \
   rpc/rpcnet.h \
@@ -335,6 +336,7 @@ libcoin_server_a_SOURCES = \
   rpc/core/rpcserver.cpp \
   rpc/rpcblockchain.cpp \
   rpc/rpcdump.cpp \
+  rpc/rpcdex.cpp \
   rpc/rpcmining.cpp \
   rpc/rpcmisc.cpp \
   rpc/rpcnet.cpp \
