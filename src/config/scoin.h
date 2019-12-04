@@ -32,6 +32,7 @@ static const double PRICE_MEDIAN_TRANSACTION_PRIORITY = 10000.0;
 static const double PRICE_FEED_TRANSACTION_PRIORITY   = 20000.0;
 
 static const uint64_t ASSET_RISK_FEE_RATIO  = 4000;        // 40% * 10000, the ratio of asset fee into the risk riserve
+static const uint64_t EXCHANGE_RISK_FEE_RATIO  = 4000;        // 40% * 10000, the ratio of exchange fee into the risk riserve
 static const uint64_t MIN_DEX_ORDER_AMOUNT  = 0.1 * COIN;  // min amount of dex order limit
 static const uint64_t MAX_SETTLE_ITEM_COUNT = 10000;       // max count of dex settle item limit.
 
@@ -57,6 +58,8 @@ enum SysParamType : uint8_t {
     CDP_SYSORDER_PENALTY_FEE_MIN            = 18,
     ASSET_ISSUE_FEE                         = 19,
     ASSET_UPDATE_FEE                        = 20,
+    EXCHANGE_REGISTER_FEE                   = 21,
+    EXCHANGE_UPDATE_FEE                     = 21,
 
 };
 
@@ -87,6 +90,8 @@ static const unordered_map<SysParamType, std::tuple<string, uint64_t>, SysParamT
     { CDP_SYSORDER_PENALTY_FEE_MIN,                 std::make_tuple("R",    10)         },  // min penalty fee = 10
     { ASSET_ISSUE_FEE,                              std::make_tuple("S",    550 * COIN) },  // asset issuance fee = 550 WICC
     { ASSET_UPDATE_FEE,                             std::make_tuple("T",    110 * COIN) },  // asset update fee = 110 WICC
+    { EXCHANGE_REGISTER_FEE,                        std::make_tuple("U",    1100 * COIN) }, // asset issuance fee = 550 WICC
+    { EXCHANGE_UPDATE_FEE,                          std::make_tuple("V",    110 * COIN) },  // asset update fee = 110 WICC
 
 };
 

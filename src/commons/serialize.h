@@ -430,6 +430,10 @@ public:
 
     I &get() { return n; }
     const I &get() const { return n; }
+
+    bool operator==(const I& i) const { return n == i; }
+    bool operator<(const I& i) const { return n < i; }
+    bool operator>(const I& i) const { return n > i; }
 };
 
 template<typename I>

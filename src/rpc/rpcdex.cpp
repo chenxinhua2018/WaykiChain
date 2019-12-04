@@ -281,6 +281,85 @@ Value submitdexsettletx(const Array& params, bool fHelp) {
     return SubmitTx(account.keyid, tx);
 }
 
+        CUserID owner_uid;                          // owner uid of exchange
+        string domain_name;                         // domain name
+        CUserID match_uid;                       // matching uid
+        MatchFeeRatioMap match_fee_ratio_map;    // match fee ratio map
+
+    typedef std::map<uint8_t, CVarIntValue<uint64_t>> MatchFeeRatioMap;
+
+extern Value submitdexexchangeregistertx(const Array& params, bool fHelp) {
+     if (fHelp || params.size() < 2 || params.size() > 3) {
+        throw runtime_error(
+            "submitdexexchangeregistertx \"addr\" \"deal_items\" [symbol:fee:unit]\n"
+            "\nsubmit dex exchange register tx.\n"
+            "\nArguments:\n"
+            "1.\"addr\": (string required) address of tx submiter account\n"
+            "2.\"owner_addr\": (string required) address of exchange owner account\n"
+            "3.\"domain_name\": (string required) domain name of exchange \n"
+            "4.\"match_addr\": (string required) address of exchange match account\n"
+            "5.\"match_fee_ratios\": (array required) match fee ratio array\n"
+            " [\n"
+            "   {\n"
+            "      \"ratio_type\": n, (numeric, required) ratio type, range: [1, 100]\n"
+            "      \"ratio_value\": n, (numeric, required) ratio value, boost 10000, range: [0, 10000]\n"
+            "   }\n"
+            "       ,...\n"
+            " ]\n"
+            "3.\"symbol:fee:unit\":(string:numeric:string, optional) fee paid for miner, default is WICC:10000:sawi\n"
+            "\nResult:\n"
+            "\"txid\" (string) The transaction id.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("submitdexexchangeregistertx", "\"100-3\" \"100-3\" \"wicc.com\" \"100-3\""
+                            "'[{\"ratio_type\":0, \"ratio_value\":400]}'")
+            + "\nAs json rpc call\n"
+            + HelpExampleRpc("submitdexexchangeregistertx", "\"100-3\", \"100-3\", \"wicc.com\", \"100-3\", "
+                           "'[{\"ratio_type\":0, \"ratio_value\":400]}'")
+        );
+    }
+
+    EnsureWalletIsUnlocked();
+
+    const CUserID &txUid = RPC_PARAM::GetUserId(params[0]);
+
+    dex::CBaseExchange exchangeInfo;
+    exchangeInfo.owner_uid = RPC_PARAM::GetUserId(params[1]);
+    exchangeInfo.domain_name = params[2].get_str();
+    exchangeInfo.match_uid = RPC_PARAM::GetUserId(params[3]);
+    Array ratioArray = params[4].get_array();
+    ComboMoney fee = RPC_PARAM::GetFee(params, 2, DEX_TRADE_SETTLE_TX);
+
+    MatchFeeRatioMap matchFeeRatioMap;
+    for (size_t i = 0; i < ratioArray.size(); i++) {
+        const auto &itemObj = ratioArray.at(i);
+        const Value& ratioTypeObj      = JSON::GetObjectFieldValue(itemObj, "ratio_type");
+        uint8_t ratioType            = ratioTypeObj.get_int();
+        const Value& ratioValueObj     = JSON::GetObjectFieldValue(itemObj, "ratio_value");
+        uint64_t ratioValue           = ratioValueObj.get_int();
+        // TODO: check ratioType and ratio Value
+        auto it = matchFeeRatioMap.find(ratioType);
+        if (it != matchFeeRatioMap.end())
+            throw JSONRPCError(RPC_INVALID_PARAMS, strprintf("ratio type repeat! i=%d, ratio_type=%d",
+                i, ratioType));
+
+        auto mapRet = exchangeInfo.match_fee_ratio_map.emplace(ratioType, ratioValue);
+        if (!mapRet.second)
+            throw JSONRPCError(RPC_INVALID_PARAMS, strprintf("add ratio to map failed! i=%d, ratio_type=%d",
+                i, ratioType));
+    }
+
+    // Get account for checking balance
+    CAccount account = RPC_PARAM::GetUserAccount(*pCdMan->pAccountCache, txUid);
+    RPC_PARAM::CheckAccountBalance(account, fee.symbol, SUB_FREE, fee.GetSawiAmount());
+
+    int32_t validHeight = chainActive.Height();
+    CDEXExchangeRegisterTx tx(txUid, validHeight, fee.symbol, fee.GetSawiAmount(), exchangeInfo);
+    return SubmitTx(account.keyid, tx);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// query api
+
 Value getdexorder(const Array& params, bool fHelp) {
      if (fHelp || params.size() != 1) {
         throw runtime_error(

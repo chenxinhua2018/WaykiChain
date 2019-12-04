@@ -1028,3 +1028,231 @@ bool CDEXSettleTx::GetDealOrder(CCacheWrapper &cw, CValidationState &state, uint
 
     return true;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// ProcessAssetFee
+
+
+static const string EXCHANGE_ACTION_REGISTER = "register";
+static const string EXCHANGE_ACTION_UPDATE = "update";
+
+static bool ProcessExchangeFee(CCacheWrapper &cw, CValidationState &state, const string &action,
+    CAccount &txAccount, vector<CReceipt> &receipts) {
+
+    uint64_t exchangeFee = 0;
+    if (action == EXCHANGE_ACTION_REGISTER) {
+        if (!cw.sysParamCache.GetParam(EXCHANGE_REGISTER_FEE, exchangeFee))
+            return state.DoS(100, ERRORMSG("%s(), read param EXCHANGE_ACTION_ISSUE error", __func__),
+                            REJECT_INVALID, "read-sysparam-error");
+    } else {
+        assert(action == EXCHANGE_ACTION_UPDATE);
+        if (!cw.sysParamCache.GetParam(EXCHANGE_UPDATE_FEE, exchangeFee))
+            return state.DoS(100, ERRORMSG("%s(), read param ASSET_UPDATE_FEE error", __func__),
+                            REJECT_INVALID, "read-sysparam-error");
+    }
+
+    if (!txAccount.OperateBalance(SYMB::WICC, BalanceOpType::SUB_FREE, exchangeFee))
+        return state.DoS(100, ERRORMSG("%s(), insufficient funds in tx account for exchange %s fee=%llu, tx_regid=%s",
+                        __func__, action, exchangeFee, txAccount.regid.ToString()), UPDATE_ACCOUNT_FAIL, "insufficent-funds");
+
+    uint64_t riskFee       = exchangeFee * ASSET_RISK_FEE_RATIO / RATIO_BOOST;
+    uint64_t minerTotalFee = exchangeFee - riskFee;
+
+    CAccount fcoinGenesisAccount;
+    if (!cw.accountCache.GetFcoinGenesisAccount(fcoinGenesisAccount))
+        return state.DoS(100, ERRORMSG("%s(), get risk riserve account failed", __func__),
+                        READ_ACCOUNT_FAIL, "get-account-failed");
+
+    if (!fcoinGenesisAccount.OperateBalance(SYMB::WICC, BalanceOpType::ADD_FREE, riskFee)) {
+        return state.DoS(100, ERRORMSG("%s(), operate balance failed! add %s asset fee=%llu to risk riserve account error",
+            __func__, action, riskFee), UPDATE_ACCOUNT_FAIL, "update-account-failed");
+    }
+    if (action == EXCHANGE_ACTION_REGISTER)
+        receipts.emplace_back(txAccount.regid, fcoinGenesisAccount.regid, SYMB::WICC, riskFee, ReceiptCode::DEX_EXCHANGE_REG_FEE_TO_RISK);
+    else
+        receipts.emplace_back(txAccount.regid, fcoinGenesisAccount.regid, SYMB::WICC, riskFee, ReceiptCode::DEX_EXCHANGE_UPDATED_FEE_TO_RISK);
+
+    if (!cw.accountCache.SetAccount(fcoinGenesisAccount.keyid, fcoinGenesisAccount))
+        return state.DoS(100, ERRORMSG("%s(), write risk riserve account error, regid=%s",
+            __func__, fcoinGenesisAccount.regid.ToString()), UPDATE_ACCOUNT_FAIL, "bad-read-accountdb");
+
+    VoteDelegateVector delegates;
+    if (!cw.delegateCache.GetActiveDelegates(delegates)) {
+        return state.DoS(100, ERRORMSG("%s(), GetActiveDelegates failed", __func__),
+            REJECT_INVALID, "get-delegates-failed");
+    }
+    assert(delegates.size() != 0 && delegates.size() == IniCfg().GetTotalDelegateNum());
+
+    for (size_t i = 0; i < delegates.size(); i++) {
+        const CRegID &delegateRegid = delegates[i].regid;
+        CAccount delegateAccount;
+        if (!cw.accountCache.GetAccount(CUserID(delegateRegid), delegateAccount)) {
+            return state.DoS(100, ERRORMSG("%s(), get delegate account info failed! delegate regid=%s",
+                __func__, delegateRegid.ToString()), UPDATE_ACCOUNT_FAIL, "bad-read-accountdb");
+        }
+        uint64_t minerUpdatedFee = minerTotalFee / delegates.size();
+        if (i == 0) minerUpdatedFee += minerTotalFee % delegates.size(); // give the dust amount to topmost miner
+
+        if (!delegateAccount.OperateBalance(SYMB::WICC, BalanceOpType::ADD_FREE, minerUpdatedFee)) {
+            return state.DoS(100, ERRORMSG("%s(), add %s asset fee to miner failed, miner regid=%s",
+                __func__, action, delegateRegid.ToString()), UPDATE_ACCOUNT_FAIL, "operate-account-failed");
+        }
+
+        if (!cw.accountCache.SetAccount(delegateRegid, delegateAccount))
+            return state.DoS(100, ERRORMSG("%s(), write delegate account info error, delegate regid=%s",
+                __func__, delegateRegid.ToString()), UPDATE_ACCOUNT_FAIL, "bad-read-accountdb");
+
+        if (action == EXCHANGE_ACTION_REGISTER)
+            receipts.emplace_back(txAccount.regid, delegateRegid, SYMB::WICC, minerUpdatedFee, ReceiptCode::DEX_EXCHANGE_REG_FEE_TO_MINER);
+        else
+            receipts.emplace_back(txAccount.regid, delegateRegid, SYMB::WICC, minerUpdatedFee, ReceiptCode::DEX_EXCHANGE_UPDATED_FEE_TO_MINER);
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// class CDEXExchangeRegisterTx
+
+string CDEXExchangeRegisterTx::ToString(CAccountDBCache &accountCache) {
+
+}
+
+Object CDEXExchangeRegisterTx::ToJson(const CAccountDBCache &accountCache) const {
+
+}
+
+bool CDEXExchangeRegisterTx::CheckTx(CTxExecuteContext &context) {
+    IMPLEMENT_DEFINE_CW_STATE;
+    IMPLEMENT_DISABLE_TX_PRE_STABLE_COIN_RELEASE;
+    IMPLEMENT_CHECK_TX_REGID(txUid.type());
+    IMPLEMENT_CHECK_TX_FEE;
+
+    if (!exchange.owner_uid.is<CRegID>()) {
+        return state.DoS(100, ERRORMSG("%s, exchange owner_uid must be regid", __FUNCTION__), REJECT_INVALID,
+            "owner-uid-type-error");
+    }
+
+    if (!exchange.match_uid.is<CRegID>()) {
+        return state.DoS(100, ERRORMSG("%s, exchange match_uid must be regid", __FUNCTION__), REJECT_INVALID,
+            "match-uid-type-error");
+    }
+
+    static const uint32_t MAX_DOMAIN_NAME_LEN = 100;
+    if (exchange.domain_name.empty() || exchange.domain_name.size() > MAX_DOMAIN_NAME_LEN) {
+        return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, domain_name is empty or len=%d greater than %d",
+            exchange.domain_name.size(), MAX_DOMAIN_NAME_LEN), REJECT_INVALID, "invalid-domain-name");
+    }
+
+    static const uint32_t MAX_MATCH_FEE_RATIO_TYPE = 100;
+    static const uint64_t MAX_MATCH_FEE_RATIO_VALUE = 10000;
+
+    for (auto item : exchange.match_fee_ratio_map) {
+        if (item.first > MAX_MATCH_FEE_RATIO_TYPE) {
+            return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, match fee ratio_type=%d is greater than %d",
+                item.first, MAX_MATCH_FEE_RATIO_TYPE), REJECT_INVALID, "invalid-match-fee-ratio-type");
+        }
+
+        if (item.second > MAX_MATCH_FEE_RATIO_VALUE)
+            return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, match fee ratio_vale=%d is greater than %d! ratio_type=%d",
+                item.second, MAX_MATCH_FEE_RATIO_TYPE, item.first), REJECT_INVALID, "invalid-match-fee-ratio-value");
+    }
+
+    // if ((txUid.type() == typeid(CPubKey)) && !txUid.get<CPubKey>().IsFullyValid())
+    //     return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, public key is invalid"), REJECT_INVALID,
+    //                      "bad-publickey");
+
+    CAccount txAccount;
+    if (!cw.accountCache.GetAccount(txUid, txAccount))
+        return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, read account failed! tx account not exist, txUid=%s",
+                     txUid.ToDebugString()), REJECT_INVALID, "bad-getaccount");
+
+    if (!txAccount.IsRegistered() || !txUid.get<CRegID>().IsMature(context.height))
+        return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, account unregistered or immature"),
+                         REJECT_INVALID, "account-unregistered-or-immature");
+
+    IMPLEMENT_CHECK_TX_SIGNATURE(txAccount.owner_pubkey);
+
+    return true;
+}
+bool CDEXExchangeRegisterTx::ExecuteTx(CTxExecuteContext &context) {
+    CCacheWrapper &cw = *context.pCw; CValidationState &state = *context.pState;
+    vector<CReceipt> receipts;
+    shared_ptr<CAccount> pTxAccount = make_shared<CAccount>();
+    if (pTxAccount == nullptr || !cw.accountCache.GetAccount(txUid, *pTxAccount))
+        return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::ExecuteTx, read tx account by txUid=%s error",
+            txUid.ToDebugString()), UPDATE_ACCOUNT_FAIL, "bad-read-accountdb");
+
+    if (!pTxAccount->OperateBalance(fee_symbol, BalanceOpType::SUB_FREE, llFees)) {
+        return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::ExecuteTx, insufficient funds in account to sub fees, fees=%llu, txUid=%s",
+                        llFees, txUid.ToDebugString()), UPDATE_ACCOUNT_FAIL, "insufficent-funds");
+    }
+
+    //TODO: make exchange_id
+
+
+    // if (cw.assetCache.HaveAsset(asset.symbol))
+    //     return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::ExecuteTx, the asset has been issued! symbol=%s",
+    //         asset.symbol), REJECT_INVALID, "asset-existed-error");
+
+    shared_ptr<CAccount> pOwnerAccount;
+    if (pTxAccount->IsMyUid(exchange.owner_uid)) {
+        pOwnerAccount = pTxAccount;
+    } else {
+        pOwnerAccount = make_shared<CAccount>();
+        if (pOwnerAccount == nullptr || !cw.accountCache.GetAccount(exchange.owner_uid, *pOwnerAccount))
+            return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, read owner account failed! owner_uid=%s",
+                exchange.owner_uid.ToDebugString()), REJECT_INVALID, "owner-account-not-exist");
+    }
+
+    if (pOwnerAccount->regid.IsEmpty() || !pOwnerAccount->regid.IsMature(context.height)) {
+        return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, owner account is unregistered or immature! regid=%s",
+            exchange.owner_uid.get<CRegID>().ToString()), REJECT_INVALID, "owner-account-unregistered-or-immature");
+    }
+
+    shared_ptr<CAccount> pMatchAccount;
+    if (pTxAccount->IsMyUid(exchange.match_uid)) {
+        pMatchAccount = pTxAccount;
+    } else if (pOwnerAccount->IsMyUid(exchange.match_uid)) {
+        pMatchAccount = pOwnerAccount;
+    } else {
+        pMatchAccount = make_shared<CAccount>();
+        if (pMatchAccount == nullptr || !cw.accountCache.GetAccount(exchange.match_uid, *pMatchAccount))
+            return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, get match account failed! match_uid=%s",
+                exchange.match_uid.ToDebugString()), REJECT_INVALID, "match-account-not-exist");
+    }
+
+    if (pMatchAccount->regid.IsEmpty() || !pMatchAccount->regid.IsMature(context.height)) {
+        return state.DoS(100, ERRORMSG("CDEXExchangeRegisterTx::CheckTx, match account is unregistered or immature! regid=%s",
+            exchange.match_uid.get<CRegID>().ToString()), REJECT_INVALID, "match-account-unregistered-or-immature");
+    }
+
+    // TODO: process asset fee
+    if (!ProcessExchangeFee(cw, state, EXCHANGE_ACTION_REGISTER, *pTxAccount, receipts)) {
+        return false;
+    }
+
+    // if (!pOwnerAccount->OperateBalance(asset.symbol, BalanceOpType::ADD_FREE, asset.total_supply)) {
+    //     return state.DoS(100, ERRORMSG("CAssetIssueTx::ExecuteTx, fail to add total_supply to issued account! total_supply=%llu, txUid=%s",
+    //                     asset.total_supply, txUid.ToDebugString()), UPDATE_ACCOUNT_FAIL, "insufficent-funds");
+    // }
+
+    if (!cw.accountCache.SetAccount(txUid, *pTxAccount))
+        return state.DoS(100, ERRORMSG("CAssetIssueTx::ExecuteTx, set tx account to db failed! txUid=%s",
+            txUid.ToDebugString()), UPDATE_ACCOUNT_FAIL, "bad-set-accountdb");
+
+    if (pOwnerAccount != pTxAccount) {
+         if (!cw.accountCache.SetAccount(pOwnerAccount->keyid, *pOwnerAccount))
+            return state.DoS(100, ERRORMSG("CAssetIssueTx::ExecuteTx, set asset owner account to db failed! owner_uid=%s",
+                asset.owner_uid.ToDebugString()), UPDATE_ACCOUNT_FAIL, "bad-set-accountdb");
+    }
+    CAsset savedAsset(&asset);
+    savedAsset.owner_uid = pOwnerAccount->regid;
+    if (!cw.assetCache.SaveAsset(savedAsset))
+        return state.DoS(100, ERRORMSG("CAssetIssueTx::ExecuteTx, save asset failed! txUid=%s",
+            txUid.ToDebugString()), UPDATE_ACCOUNT_FAIL, "save-asset-failed");
+
+    if(!cw.txReceiptCache.SetTxReceipts(GetHash(), receipts))
+        return state.DoS(100, ERRORMSG("CAssetIssueTx::ExecuteTx, set tx receipts failed!! txid=%s",
+                        GetHash().ToString()), REJECT_INVALID, "set-tx-receipt-failed");
+    return true;
+}
