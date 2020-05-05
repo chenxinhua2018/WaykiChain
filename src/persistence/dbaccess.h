@@ -360,7 +360,7 @@ public:
         if (is_calc_size) {
             return size;
         } else {
-            uint32_t sz;
+            uint32_t sz = 0;
             for (const auto &item : mapData) {
                 sz += ::GetSerializeSize(item.first, SER_DISK, CLIENT_VERSION) +
                       ::GetSerializeSize(*item.second, SER_DISK, CLIENT_VERSION);
