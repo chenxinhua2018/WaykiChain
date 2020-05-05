@@ -339,7 +339,7 @@ public:
     };
 
     CCompositeKVCache(CDBAccess *pDbAccessIn): pBase(nullptr),
-        pDbAccess(pDbAccessIn), is_calc_size(true) {
+        pDbAccess(pDbAccessIn), is_calc_size(false) {
         assert(pDbAccessIn != nullptr);
         assert(pDbAccess->GetDbNameType() == GetDbNameEnumByPrefix(PREFIX_TYPE));
     };
@@ -357,7 +357,16 @@ public:
     bool IsCalcSize() const { return is_calc_size; }
 
     uint32_t GetCacheSize() const {
-        return size;
+        if (is_calc_size) {
+            return size;
+        } else {
+            uint32_t sz;
+            for (const auto &item : mapData) {
+                sz += ::GetSerializeSize(item.first, SER_DISK, CLIENT_VERSION) +
+                      ::GetSerializeSize(*item.second, SER_DISK, CLIENT_VERSION);
+            }
+            return sz;
+        }
     }
 
     bool GetData(const KeyType &key, ValueType &value) const {
